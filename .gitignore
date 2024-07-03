@@ -1,0 +1,5 @@
+EXP1_dataset/
+checkpoint.bin
+data_stats/
+logs/
+*.tmp
