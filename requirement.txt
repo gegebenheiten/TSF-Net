@@ -1,0 +1,6 @@
+glob2
+matplotlib
+scipy
+scikit-image
+PyWavelets
+einops
