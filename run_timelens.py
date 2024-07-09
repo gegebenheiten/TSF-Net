@@ -1,5 +1,6 @@
 import os
-
+import glob
+from tqdm import tqdm
 import click
 import numpy as np
 import sys
@@ -72,7 +73,7 @@ def _interpolate(
     return output_frames, output_timestamps
 
 
-def _load_network(checkpoint_file):
+def _load_network():
     network = EDSR()
     #network.from_legacy_checkpoint(checkpoint_file)
     network.cuda()
@@ -89,7 +90,6 @@ def _pack_to_example(left_image, right_image, left_events, right_events, right_w
 
 
 def run_recursively(
-        checkpoint_file,
         root_event_folder,
         root_image_folder,
         root_output_folder,
@@ -100,11 +100,10 @@ def run_recursively(
         os.path.abspath(folder)
         for folder in [root_image_folder, root_event_folder, root_output_folder]
     ]
-
     # here we initialize the remapping function for events
     remapping_maps = None
     transform_list = transformers.initialize_transformers()
-    network = _load_network(checkpoint_file)
+    network = _load_network()
     leaf_image_folders = os_tools.find_leaf_folders(root_image_folder)
     for leaf_image_folder in leaf_image_folders:
         relative_path = os.path.relpath(leaf_image_folder, root_image_folder)
@@ -142,28 +141,33 @@ def run_recursively(
 
 
 @click.command()
-@click.argument("checkpoint_file",default ='checkpoint.bin')
-@click.argument("root_event_folder",default ='EXP1_dataset/3_TRAINING/ball_00/events')
-@click.argument("root_image_folder", default ='EXP1_dataset/3_TRAINING/ball_00/images')
-@click.argument("root_output_folder", default ='EXP1_dataset/Output')
+# @click.argument("checkpoint_file",default ='checkpoint.bin')
+# @click.argument("root_event_folder",default ='EXP1_dataset/3_TRAINING/ball_00/events')
+# @click.argument("root_image_folder", default ='EXP1_dataset/3_TRAINING/ball_00/images')
+@click.argument("base_path", default ='data/EXP1_dataset/3_TRAINING')
+@click.argument("root_output_folder", default ='data/EXP1_dataset/Output')
 @click.argument("number_of_frames_to_skip", default=1)
 @click.argument("number_of_frames_to_insert", default=1)
 def main(
-        checkpoint_file,
-        root_event_folder,
-        root_image_folder,
+        # root_event_folder,
+        # root_image_folder,
+        base_path,
         root_output_folder,
         number_of_frames_to_skip,
         number_of_frames_to_insert,
 ):
-    run_recursively(
-        checkpoint_file,
-        root_event_folder,
-        root_image_folder,
-        root_output_folder,
-        number_of_frames_to_skip,
-        number_of_frames_to_insert,
-    )
+    # retrieve every scene in the folder
+    folders = glob.glob(os.path.join(base_path, '*/'))
+    for scene in tqdm(folders):
+        root_event_folder = scene + 'events'
+        root_image_folder = scene + 'images'
+        run_recursively(
+            root_event_folder,
+            root_image_folder,
+            root_output_folder,
+            number_of_frames_to_skip,
+            number_of_frames_to_insert,
+        )
 
 
 if __name__ == "__main__":
