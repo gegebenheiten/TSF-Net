@@ -5,16 +5,15 @@ from itertools import islice
 from PIL import Image
 import numpy as np
 import tqdm
-
-
+import torchvision.transforms as transforms
+import cv2
 
 TIMESTAMP_COLUMN = 2
 X_COLUMN = 0
 Y_COLUMN = 1
 POLARITY_COLUMN = 3
+
 '''
-
-
 
 tensor transformer 
         
@@ -198,6 +197,9 @@ def group_data(data, group_size):
         start = max(0,i-1)
         grouped_data.append(data[start:i+group_size])
     return grouped_data
+
+
+
 class demoDataset(torch.utils.data.Dataset):
     def __init__(self,opt,skip_number,se_idx=None):
         
@@ -221,6 +223,10 @@ class demoDataset(torch.utils.data.Dataset):
             group_event_path = group_data(one_sinario_eve,skip_number+1)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
+            self.osize = (256,256)
+
+        self.device = torch.device('cuda:'+ self.opt.gpu_ids if torch.cuda.is_available() else "cpu")
+        
 
 
     def __len__(self):
@@ -230,32 +236,70 @@ class demoDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         group_image_path = self.img_path_list[self.opt.se_idx][idx//self.skip_number]
         group_event_path = self.event_path_list[self.opt.se_idx][idx//self.skip_number]
+        t = idx%self.skip_number
+        eve_0_t_paths = group_event_path[:t]
+        eve_t_1_paths = group_event_path[t:]
         I0_path = group_image_path[0]
         I1_path = group_image_path[-1]
         label_paths = group_image_path[1:self.skip_number+1]
         self.I0 = Image.open(I0_path)
         self.I1 = Image.open(I1_path)
-        labels = []
-        for path in label_paths:
-            img = Image.open(path)  
-            img_array = np.array(img)  
-            labels.append(img_array)
-        self.labels = np.array(labels)
-        image_height,image_width,_ =  img_array.shape
-        eve_0_t_paths = group_event_path[:idx%self.skip_number]
-        eve_t_1_paths = group_event_path[idx%self.skip_number:]
+        self.label = Image.open(label_paths[t])
+        self.label = np.array(self.label)
+        self.label  = np.array([cv2.resize(self.label[:,:,i],(256,256)) for i in range(self.label.shape[2])])
+        image_height,image_width,_ = np.array(self.I0).shape
+        
         # load timelens 
         eve_0_t = EventSequence.from_npz_files(list_of_filenames=eve_0_t_paths, image_height=image_height,image_width=image_width)._features
         eve_t_1 =EventSequence.from_npz_files(list_of_filenames=eve_t_1_paths, image_height=image_height,image_width=image_width)
         eve_1_t = eve_t_1._features[eve_t_1._features[:, TIMESTAMP_COLUMN].argsort()[::-1]]
         
         # to voxel  e2vid 
-        voxel_eve_0_t = events_to_voxel_grid(eve_0_t,num_bins=self.skip_number+2,width=image_width,height=image_height)
-        voxel_eve_1_t = events_to_voxel_grid(eve_1_t,num_bins=self.skip_number+2,width=image_width,height=image_height)
+        voxel_eve_0_t = events_to_voxel_grid(eve_0_t,num_bins=5,width=image_width,height=image_height)
+        voxel_eve_1_t = events_to_voxel_grid(eve_1_t,num_bins=5,width=image_width,height=image_height)
 
         # torch transformer  i0 i1 -> normalized  
+        transform_list = []
+        transform_list.append(transforms.ToTensor())
+        self.transforms_toTensor = transforms.Compose(transform_list)
+
+        transform_list = []
+        transform_list.append(transforms.Normalize((0.5,),
+                                            (0.5,)))
+        self.transforms_normalize = transforms.Compose(transform_list)
+
+        transform_list = []
+        transform_list.append(transforms.Resize(self.osize, interpolation=Image.BICUBIC))
+        self.transforms_scale = transforms.Compose(transform_list)
+
+        transform_list = []
+        transform_list.append(transforms.Normalize((0.5,),
+                                            (0.5,)))
+        self.transforms_eve_normalize = transforms.Compose(transform_list)
+
+
+        I0 = self.transforms_scale(self.I0)
+        I1 = self.transforms_scale(self.I1)
+
+
+        voxel_eve_0_t =  np.array([cv2.resize(voxel_eve_0_t[i,:,:],(256,256)) for i in range(voxel_eve_0_t.shape[0]) ])
+        voxel_eve_1_t = np.array([cv2.resize(voxel_eve_1_t[i,:,:],(256,256)) for i in range(voxel_eve_1_t.shape[0]) ])
+        
+
+
+        I0 =  self.transforms_toTensor(I0).to(self.device)
+        I1 =  self.transforms_toTensor(I1).to(self.device)
+        label = torch.from_numpy(self.label).to(self.device)
+        voxel_eve_0_t =voxel_eve_0_t/ voxel_eve_0_t.max() 
+        voxel_eve_1_t =voxel_eve_1_t / voxel_eve_1_t.max()
+        voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t).to(self.device)
+        voxel_eve_1_t = torch.from_numpy(voxel_eve_1_t).to(self.device)
+        I0 = self.transforms_normalize(I0)
+        I1 = self.transforms_normalize(I1)
+
+        
 
         
         # to tensor 
-        return  self.I0, self.I1, self.labels, voxel_eve_0_t, voxel_eve_1_t
+        return  I0, I1, label, voxel_eve_0_t, voxel_eve_1_t
     
