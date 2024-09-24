@@ -201,10 +201,10 @@ def group_data(data, group_size):
 
 
 class demoDataset(torch.utils.data.Dataset):
-    def __init__(self,opt,skip_number,se_idx=None):
+    def __init__(self,opt,se_idx=None):
         
-        self.skip_number = skip_number
-        self.opt = opt 
+        self.skip_number = opt.skip_number
+        self.opt = opt
         if se_idx is not None:
             self.opt.se_idx = se_idx
         elif not hasattr(self.opt, 'se_idx'):
@@ -219,8 +219,8 @@ class demoDataset(torch.utils.data.Dataset):
             else:
                 one_sinario_img = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir,'1_TEST',senario,'images')))
                 one_sinario_eve = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir,'1_TEST',senario,'events')))
-            group_image_path = group_data(one_sinario_img,skip_number+1)
-            group_event_path = group_data(one_sinario_eve,skip_number+1)
+            group_image_path = group_data(one_sinario_img,self.skip_number+2)
+            group_event_path = group_data(one_sinario_eve,self.skip_number+2)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
             self.osize = (256,256)
@@ -233,10 +233,13 @@ class demoDataset(torch.utils.data.Dataset):
         
         return len(self.img_path_list[self.opt.se_idx]*self.skip_number)
 
+
     def __getitem__(self, idx):
         group_image_path = self.img_path_list[self.opt.se_idx][idx//self.skip_number]
         group_event_path = self.event_path_list[self.opt.se_idx][idx//self.skip_number]
         t = idx%self.skip_number
+        if t == 0:
+            return self.__getitem__(idx + 1)
         eve_0_t_paths = group_event_path[:t]
         eve_t_1_paths = group_event_path[t:]
         I0_path = group_image_path[0]
@@ -301,5 +304,5 @@ class demoDataset(torch.utils.data.Dataset):
 
         
         # to tensor 
-        return  I0, I1, label, voxel_eve_0_t, voxel_eve_1_t
+        return  (I0, I1, voxel_eve_0_t, voxel_eve_1_t),label
     

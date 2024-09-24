@@ -12,8 +12,8 @@ option = SimpleOptions()
 opt = option.parse()
 opt.isTrain = True 
 # Prepare data
-train_dataset = demoDataset(opt,skip_number=7)
-train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=True)
+train_dataset = demoDataset(opt)
+train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False)
 
 # Initialize model, criterion, and optimizer
 model = EDSR()
@@ -31,7 +31,7 @@ for epoch in range(opt.num_epochs):
         for i, (inputs, labels) in enumerate(train_loader):
             #for t in range():
             # Zero the parameter gradients
-            optimizer.zero_grad()
+            optimizer.zero_grad() 
 
             # Forward pass
             outputs = model(inputs)
