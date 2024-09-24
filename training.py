@@ -24,7 +24,7 @@ opt.num_patches_per_frame = 50
 n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
 
 # Prepare data
-train_dataset = demoDataset(opt, skip_number=opt.skip_number)
+train_dataset = demoDataset(opt)
 train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
 train_dataset = demoDataset(opt)
 train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False)
@@ -48,10 +48,10 @@ for epoch in range(opt.num_epochs):
     for se_idx in range(len(opt.senarios)):
         opt.se_idx = se_idx
         running_loss = 0.0
-        for i, (left_image, right_image, labels, left_events, right_events) in enumerate(train_loader):
+        for i, (inputs, labels) in enumerate(train_loader):
+            left_image, right_image, left_events, right_events = inputs
             # Zero the parameter gradients
-            optimizer.zero_grad() 
-
+            optimizer.zero_grad()
             # Forward pass
             output = model(opt, left_image, left_events, right_image, right_events, n_blocks, dct_max, dct_min)
             loss = criterion(output, labels)
