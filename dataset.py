@@ -296,7 +296,7 @@ class demoDataset(torch.utils.data.Dataset):
 
         I0 = self.transforms_toTensor(I0).to(self.device)
         I1 = self.transforms_toTensor(I1).to(self.device)
-        label = torch.from_numpy(self.label).to(self.device)
+        label = torch.from_numpy(self.label).float().to(self.device)
         voxel_eve_0_t = voxel_eve_0_t / voxel_eve_0_t.max()
         voxel_eve_1_t = voxel_eve_1_t / voxel_eve_1_t.max()
         voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t).to(self.device)
