@@ -241,7 +241,7 @@ class demoDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         group_image_path = self.img_path_list[self.opt.se_idx][idx // self.skip_number]
         group_event_path = self.event_path_list[self.opt.se_idx][idx // self.skip_number]
-        t = idx % self.skip_number
+        t = idx % (self.skip_number+1)
         if t == 0:
             return self.__getitem__(idx + 1)
         eve_0_t_paths = group_event_path[:t]
@@ -251,7 +251,7 @@ class demoDataset(torch.utils.data.Dataset):
         label_paths = group_image_path[1:self.skip_number + 1]
         self.I0 = Image.open(I0_path)
         self.I1 = Image.open(I1_path)
-        self.label = Image.open(label_paths[t])
+        self.label = Image.open(label_paths[t-1])
         self.label = np.array(self.label)
         self.label = np.array([cv2.resize(self.label[:, :, i], (256, 256)) for i in range(self.label.shape[2])])
         image_height, image_width, _ = np.array(self.I0).shape
