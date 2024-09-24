@@ -26,7 +26,7 @@ n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
 
 # Prepare data
 train_dataset = demoDataset(opt)
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False)
 
 # Initialize model, criterion, and optimizer
 model = EDSR().to(opt.device)

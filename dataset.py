@@ -108,7 +108,7 @@ class EventSequence(object):
         """Reads event sequence from numpy file list."""
         if len(list_of_filenames) > 1:
             features_list = []
-            for f in tqdm.tqdm(list_of_filenames):
+            for f in list_of_filenames:
                 features_list += [load_events(f)]  # for filename in list_of_filenames]
             features = np.concatenate(features_list)
         else:
@@ -303,6 +303,7 @@ class demoDataset(torch.utils.data.Dataset):
         voxel_eve_1_t = torch.from_numpy(voxel_eve_1_t).to(self.device)
         I0 = self.transforms_normalize(I0)
         I1 = self.transforms_normalize(I1)
+        label = self.transforms_normalize(label)
 
         # to tensor
         return (I0, I1, voxel_eve_0_t, voxel_eve_1_t), label
