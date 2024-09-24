@@ -8,6 +8,7 @@ import numpy  as np
 import os
 from basic_potion import SimpleOptions
 import pickle
+import time
 
 # initialize parser
 option = SimpleOptions()
@@ -26,8 +27,6 @@ n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
 # Prepare data
 train_dataset = demoDataset(opt)
 train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
-train_dataset = demoDataset(opt)
-train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False)
 
 # Initialize model, criterion, and optimizer
 model = EDSR().to(opt.device)
@@ -45,13 +44,18 @@ dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float
 
 # Training loop
 for epoch in range(opt.num_epochs):
+    epoch_start_time = time.time()  # 记录 epoch 开始时间
     for se_idx in range(len(opt.senarios)):
         opt.se_idx = se_idx
         running_loss = 0.0
         for i, (inputs, labels) in enumerate(train_loader):
+            batch_start_time = time.time()
+
             left_image, right_image, left_events, right_events = inputs
+
             # Zero the parameter gradients
             optimizer.zero_grad()
+
             # Forward pass
             output = model(opt, left_image, left_events, right_image, right_events, n_blocks, dct_max, dct_min)
             loss = criterion(output, labels)
@@ -62,9 +66,20 @@ for epoch in range(opt.num_epochs):
 
             running_loss += loss.item()
 
-            if i % 10 == 9:  # Print every 10 batches
-                print(f"[Epoch {epoch+1}, Batch {i+1}] Loss: {running_loss / 10:.3f}")
-                running_loss = 0.0
+            # calculate the batch time
+            batch_time = time.time() - batch_start_time
+
+            # if i % 10 == 9:
+            print(f"[Epoch {epoch+1}, Batch {i+1}] Loss: {running_loss / 10:.3f}, Batch Time: {batch_time:.3f} sec")
+            running_loss = 0.0
+
+    epoch_time = time.time() - epoch_start_time
+    print(f"Epoch {epoch+1} completed in {epoch_time:.3f} seconds")
 
     # Step the scheduler to adjust the learning rate
     scheduler.step()
+
+    if (epoch + 1) % 20 == 0:
+        model_save_path = f"save_models/model_epoch_{epoch+1}.pth"
+        torch.save(model.state_dict(), model_save_path)
+        print(f"Model saved to {model_save_path}")
