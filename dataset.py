@@ -208,6 +208,7 @@ class demoDataset(torch.utils.data.Dataset):
 
         self.skip_number = opt.skip_number
         self.opt = opt
+        self.num_bins = 5
         if se_idx is not None:
             self.opt.se_idx = se_idx
         elif not hasattr(self.opt, 'se_idx'):
@@ -239,11 +240,21 @@ class demoDataset(torch.utils.data.Dataset):
         return len(self.img_path_list[self.opt.se_idx] * self.skip_number)
 
     def __getitem__(self, idx):
+        I0 = torch.zeros(3,self.osize[0],self.osize[1])
+        I1 = torch.zeros(3,self.osize[0],self.osize[1])
+        voxel_eve_0_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1])
+        voxel_eve_1_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1])
+        label = torch.zeros(3,self.osize[0],self.osize[1])
+        t = idx % (self.skip_number+1)
+        if t == 0 :
+            I0 = I0.to(self.device)
+            I1 = I1.to(self.device)
+            voxel_eve_0_t = voxel_eve_0_t.to(self.device)
+            voxel_eve_1_t = voxel_eve_1_t.to(self.device)
+            label = label.to(self.device)
+            return (I0, I1, voxel_eve_0_t, voxel_eve_1_t), label
         group_image_path = self.img_path_list[self.opt.se_idx][idx // self.skip_number]
         group_event_path = self.event_path_list[self.opt.se_idx][idx // self.skip_number]
-        t = idx % (self.skip_number+1)
-        if t == 0:
-            return self.__getitem__(idx + 1)
         eve_0_t_paths = group_event_path[:t]
         eve_t_1_paths = group_event_path[t:]
         I0_path = group_image_path[0]
@@ -264,8 +275,8 @@ class demoDataset(torch.utils.data.Dataset):
         eve_1_t = eve_t_1._features[eve_t_1._features[:, TIMESTAMP_COLUMN].argsort()[::-1]]
 
         # to voxel  e2vid
-        voxel_eve_0_t = events_to_voxel_grid(eve_0_t, num_bins=5, width=image_width, height=image_height)
-        voxel_eve_1_t = events_to_voxel_grid(eve_1_t, num_bins=5, width=image_width, height=image_height)
+        voxel_eve_0_t = events_to_voxel_grid(eve_0_t, num_bins=self.num_bins, width=image_width, height=image_height)
+        voxel_eve_1_t = events_to_voxel_grid(eve_1_t, num_bins=self.num_bins, width=image_width, height=image_height)
 
         # torch transformer  i0 i1 -> normalized
         transform_list = []
