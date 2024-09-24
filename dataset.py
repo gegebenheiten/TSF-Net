@@ -219,8 +219,8 @@ class demoDataset(torch.utils.data.Dataset):
             else:
                 one_sinario_img = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir,'1_TEST',senario,'images')))
                 one_sinario_eve = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir,'1_TEST',senario,'events')))
-            group_image_path = group_data(one_sinario_img,skip_number+1)
-            group_event_path = group_data(one_sinario_eve,skip_number+1)
+            group_image_path = group_data(one_sinario_img,skip_number+2)
+            group_event_path = group_data(one_sinario_eve,skip_number+2)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
             self.osize = (256,256)
@@ -237,8 +237,8 @@ class demoDataset(torch.utils.data.Dataset):
         group_image_path = self.img_path_list[self.opt.se_idx][idx//self.skip_number]
         group_event_path = self.event_path_list[self.opt.se_idx][idx//self.skip_number]
         t = idx%self.skip_number
-        eve_0_t_paths = group_event_path[:t]
-        eve_t_1_paths = group_event_path[t:]
+        eve_0_t_paths = group_event_path[1:t+1]
+        eve_t_1_paths = group_event_path[t+1:8]
         I0_path = group_image_path[0]
         I1_path = group_image_path[-1]
         label_paths = group_image_path[1:self.skip_number+1]
@@ -289,7 +289,7 @@ class demoDataset(torch.utils.data.Dataset):
 
         I0 =  self.transforms_toTensor(I0).to(self.device)
         I1 =  self.transforms_toTensor(I1).to(self.device)
-        label = torch.from_numpy(self.label).to(self.device)
+        label = torch.from_numpy(self.label).float().to(self.device)
         voxel_eve_0_t =voxel_eve_0_t/ voxel_eve_0_t.max() 
         voxel_eve_1_t =voxel_eve_1_t / voxel_eve_1_t.max()
         voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t).to(self.device)
@@ -301,5 +301,5 @@ class demoDataset(torch.utils.data.Dataset):
 
         
         # to tensor 
-        return  I0, I1, label, voxel_eve_0_t, voxel_eve_1_t
+        return I0, I1, label, voxel_eve_0_t, voxel_eve_1_t
     
