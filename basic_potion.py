@@ -11,10 +11,13 @@ class SimpleOptions():
         self.parser.add_argument('--num_epochs', type=int, default=36, help='number of epochs to train')
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for cpu')
         self.parser.add_argument('--senarios', type=str, nargs='+', default=['ball_00', 'ball_02', 'basket_05', 'eggs_01', 'eggs_03', 'eggs_05', 'horse_03', 'may29_handheld_02', 'may29_handheld_04'], help='list of scenarios')
+
         self.parser.add_argument('--data_root_dir', type=str, default='data/EXP1_dataset', help='root directory for data')
 
         self.parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
         self.parser.add_argument('--skip_number', default=1, type=int, metavar='N', help='number of interpolation frames')
+        self.parser.add_argument('--data_root_dir', type=str, default='/home/nwn9209/tsfnet/tsfnet_code/EXP1_dataset', help='root directory for data')
+        self.parser.add_argument('--skip_number', type=int, default='7', help='root directory for data')
 
         self.initialized = True
 
