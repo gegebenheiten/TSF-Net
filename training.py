@@ -6,7 +6,7 @@ from models.EDSR import EDSR
 from dataset import demoDataset
 import numpy  as np
 import os
-from basic_potion import SimpleOptions
+from basic_option import SimpleOptions
 import pickle
 import time
 
@@ -14,14 +14,8 @@ import time
 option = SimpleOptions()
 opt = option.parse()
 opt.isTrain = True
-opt.skip_number = 7
-opt.device = torch.device("cuda:0")
-qp = 42
-opt.epochs = 150
-opt.qp = qp
-opt.patch_size = 256
-opt.block_size = 4
-opt.num_patches_per_frame = 50
+opt.device = torch.device("cuda:1")
+
 n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
 
 # Prepare data
@@ -36,7 +30,7 @@ optimizer = optim.Adam(model.parameters(), lr=opt.initial_lr)
 # Learning rate scheduler
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=12, gamma=0.1)
 
-with open(f'data_stats/div2k/stats_qp{qp}.pkl', 'rb') as f:
+with open(f'/home/nwn9209/TSF-Net/data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
     stats = pickle.load(f)
 
 dct_min = torch.from_numpy(stats['dct_input']['min'][None, :, None, None]).float().to(opt.device)
@@ -80,6 +74,10 @@ for epoch in range(opt.num_epochs):
     scheduler.step()
 
     if (epoch + 1) % 20 == 0:
-        model_save_path = f"save_models/model_epoch_{epoch+1}.pth"
+        model_dir = './save_models'
+        model_name  = f"model_epoch_{epoch+1}.pth"
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir,exist_ok=True)
+        model_save_path = os.path.join(model_dir,model_name)
         torch.save(model.state_dict(), model_save_path)
         print(f"Model saved to {model_save_path}")

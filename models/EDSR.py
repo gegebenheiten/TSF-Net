@@ -9,10 +9,10 @@ from . import MST
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from img_op import blockify, unblockify
-from torch_dct import dct_2d
+from .img_op import blockify, unblockify
+from .torch_dct import dct_2d
 
-from options import args_parser
+from .options import args_parser
 import pickle
 
 def default_conv(in_channels, out_channels, kernel_size, bias=True, groups=1):
