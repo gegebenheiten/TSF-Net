@@ -45,8 +45,6 @@ class demoDataset(torch.utils.data.Dataset):
         self.osize = (256, 256)
         self.device = torch.device(self.opt.gpu_ids)
 
-        
-
     def __len__(self):
 
         return len(self.img_path_list[self.opt.se_idx] * self.skip_number)
@@ -65,7 +63,6 @@ class demoDataset(torch.utils.data.Dataset):
 
         group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number + 1)]
         group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number + 1)]
-=======
         self.I0 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
         self.I1 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
         self.voxel_eve_0_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
@@ -79,7 +76,6 @@ class demoDataset(torch.utils.data.Dataset):
         
         group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
         group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
->>>>>>> bdca369b89db6ee1642fe0976b288ba7c332952c
         eve_0_t_paths = group_event_path[:t]
         eve_t_1_paths = group_event_path[t:]
         I0_path = group_image_path[0]
