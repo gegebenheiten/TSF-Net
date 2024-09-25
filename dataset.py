@@ -38,17 +38,13 @@ class demoDataset(torch.utils.data.Dataset):
                     get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'images')))
                 one_sinario_eve = sorted(
                     get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'events')))
-            group_image_path = group_data(one_sinario_img, self.skip_number + 2)
-            group_event_path = group_data(one_sinario_eve, self.skip_number + 2)
+            group_image_path = group_data(one_sinario_img, self.skip_number + 1)
+            group_event_path = group_data(one_sinario_eve, self.skip_number + 1)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
         self.osize = (256, 256)
         self.device = torch.device(self.opt.gpu_ids)
-        self.I0 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
-        self.I1 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
-        self.voxel_eve_0_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
-        self.voxel_eve_1_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
-        self.label = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
+        
         
 
     def __len__(self):
@@ -56,12 +52,19 @@ class demoDataset(torch.utils.data.Dataset):
         return len(self.img_path_list[self.opt.se_idx] * self.skip_number)
 
     def __getitem__(self, idx):
+        self.I0 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
+        self.I1 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
+        self.voxel_eve_0_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
+        self.voxel_eve_1_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
+        self.label = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
         
         t = idx % (self.skip_number+1)
         if t == 0 :
             return (self.I0, self.I1, self.voxel_eve_0_t, self.voxel_eve_1_t), self.label
-        group_image_path = self.img_path_list[self.opt.se_idx][idx // self.skip_number]
-        group_event_path = self.event_path_list[self.opt.se_idx][idx // self.skip_number]
+        #idx / group = x ...... t 
+        
+        group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
+        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
         eve_0_t_paths = group_event_path[:t]
         eve_t_1_paths = group_event_path[t:]
         I0_path = group_image_path[0]
