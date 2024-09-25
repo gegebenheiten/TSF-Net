@@ -12,7 +12,7 @@
       <paths name="bwr9054@zeus.northwestern.edu:22 password (2)">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/bwr9054" local="$PROJECT_DIR$" />
+            <mapping deploy="/home/bwr9054/TSF-Net" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>
