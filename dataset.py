@@ -5,14 +5,14 @@ from PIL import Image
 import numpy as np
 import torchvision.transforms as transforms
 import cv2
-from event import EventSequence, events_to_voxel_grid
+from event import EventSequence,events_to_voxel_grid 
 from util import get_all_file_paths, group_data
+
 
 TIMESTAMP_COLUMN = 2
 X_COLUMN = 0
 Y_COLUMN = 1
 POLARITY_COLUMN = 3
-
 
 class demoDataset(torch.utils.data.Dataset):
     def __init__(self, opt, se_idx=None):
@@ -38,54 +38,36 @@ class demoDataset(torch.utils.data.Dataset):
                     get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'images')))
                 one_sinario_eve = sorted(
                     get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'events')))
-            group_image_path = group_data(one_sinario_img, self.skip_number + 1)
-            group_event_path = group_data(one_sinario_eve, self.skip_number + 1)
+            group_image_path = group_data(one_sinario_img, self.skip_number + 2)
+            group_event_path = group_data(one_sinario_eve, self.skip_number + 2)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
         self.osize = (256, 256)
         self.device = torch.device(self.opt.gpu_ids)
+        
+        
 
     def __len__(self):
 
         return len(self.img_path_list[self.opt.se_idx] * self.skip_number)
 
     def __getitem__(self, idx):
-        self.I0 = torch.zeros(3, self.osize[0], self.osize[1]).to(self.device)
-        self.I1 = torch.zeros(3, self.osize[0], self.osize[1]).to(self.device)
-        self.voxel_eve_0_t = torch.zeros(self.num_bins, self.osize[0], self.osize[1]).to(self.device)
-        self.voxel_eve_1_t = torch.zeros(self.num_bins, self.osize[0], self.osize[1]).to(self.device)
-        self.label = torch.zeros(3, self.osize[0], self.osize[1]).to(self.device)
-
-        t = idx % (self.skip_number + 1)
-        if t == 0:
-            return (self.I0, self.I1, self.voxel_eve_0_t, self.voxel_eve_1_t), self.label
-        # idx / group = x ...... t
-
-        group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number + 1)]
-        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number + 1)]
         self.I0 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
         self.I1 = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
         self.voxel_eve_0_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
         self.voxel_eve_1_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
         self.label = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
+        group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number+2)]
+        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number+2)]
+        t = idx % (self.skip_number+2)
         
-        t = idx % (self.skip_number+1)
-        if t == 0 :
-            return (self.I0, self.I1, self.voxel_eve_0_t, self.voxel_eve_1_t), self.label
-        #idx / group = x ...... t 
-        
-        group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
-        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
-        eve_0_t_paths = group_event_path[:t]
+        eve_0_t_paths = group_event_path[:t+1]
         eve_t_1_paths = group_event_path[t:]
         I0_path = group_image_path[0]
         I1_path = group_image_path[-1]
-        label_paths = group_image_path[1:self.skip_number + 1]
         I0 = Image.open(I0_path)
         I1 = Image.open(I1_path)
-        label = Image.open(label_paths[t - 1])
-        label = np.array(label)
-        label = np.array([cv2.resize(label[:, :, i], (256, 256)) for i in range(label.shape[2])])
+        label = Image.open(group_image_path[t])
         image_height, image_width = self.osize
 
         # load timelens
@@ -120,6 +102,7 @@ class demoDataset(torch.utils.data.Dataset):
 
         I0 = self.transforms_scale(I0)
         I1 = self.transforms_scale(I1)
+        label = self.transforms_scale(label)
 
         voxel_eve_0_t = np.array(
             [cv2.resize(voxel_eve_0_t[i, :, :], (256, 256)) for i in range(voxel_eve_0_t.shape[0])])
@@ -128,12 +111,13 @@ class demoDataset(torch.utils.data.Dataset):
 
         I0 = self.transforms_toTensor(I0)
         I1 = self.transforms_toTensor(I1)
-        label = torch.from_numpy(label).float()
-        voxel_eve_0_t = voxel_eve_0_t / voxel_eve_0_t.max()
-        voxel_eve_1_t = voxel_eve_1_t / voxel_eve_1_t.max()
+        label = self.transforms_toTensor(label)
+        if voxel_eve_0_t.max() != 0:
+            voxel_eve_0_t = voxel_eve_0_t / voxel_eve_0_t.max()
+            voxel_eve_1_t = voxel_eve_1_t / voxel_eve_1_t.max()
         voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t)
         voxel_eve_1_t = torch.from_numpy(voxel_eve_1_t)
-        I0 = self.transforms_normalize(I0)
+        I0 = self.transforms_normalize(I0) 
         I1 = self.transforms_normalize(I1)
         label = self.transforms_normalize(label)
         self.I0.copy_(I0)
@@ -141,6 +125,7 @@ class demoDataset(torch.utils.data.Dataset):
         self.voxel_eve_0_t.copy_(voxel_eve_0_t)
         self.voxel_eve_1_t.copy_(voxel_eve_1_t)
         self.label.copy_(label)
+        
 
         # to tensor
         return (self.I0, self.I1, self.voxel_eve_0_t, self.voxel_eve_1_t), self.label

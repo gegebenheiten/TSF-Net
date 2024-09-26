@@ -8,10 +8,9 @@ class SimpleOptions():
     def initialize(self):
         self.parser.add_argument('--batch_size', type=int, default=4, help='input batch size')
         self.parser.add_argument('--initial_lr', type=float, default=1e-4, help='initial learning rate')
-        self.parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs to train')
-        self.parser.add_argument('--gpu_ids', type=str, default='cuda:2', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for cpu')
-        self.parser.add_argument('--senarios', type=str, nargs='+', default=['ball_00', 'ball_02', 'basket_05', 'eggs_01', 'eggs_03', 'eggs_05', 'horse_03', 'may29_handheld_02', 'may29_handheld_04'], help='list of scenarios')
-        self.parser.add_argument('--data_root_dir', type=str, default='data/EXP1_dataset', help='root directory for data')
+        self.parser.add_argument('--num_epochs', type=int, default=36, help='number of epochs to train')
+        self.parser.add_argument('--gpu_ids', type=str, default='cuda:1', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for cpu')
+        self.parser.add_argument('--data_root_dir', type=str, default='/home/nwn9209/TSF-Net/EXP1_dataset', help='root directory for data')
         self.parser.add_argument('--skip_number', default=7, type=int, metavar='N', help='number of interpolation frames')
         self.parser.add_argument('--qp', default=42, type=int, metavar='N', help='number of interpolation frames')
         self.parser.add_argument('--patch_size', default=256, type=int, metavar='N', help='number of interpolation frames')

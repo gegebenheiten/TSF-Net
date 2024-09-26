@@ -17,20 +17,23 @@ opt.isTrain = True
 opt.device = torch.device(opt.gpu_ids)
 
 n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
+senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir,'3_TRAINING')) if f.is_dir()]
+opt.senarios = senarios
 
+opt.senarios  = ['may29_handheld_04']
 # Prepare data
 train_dataset = demoDataset(opt)
 train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False)
 
-# Initialize model, criterion, and optimizer
+# Initialize model, criterion, and optimizerç
 model = EDSR().to(opt.device)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.L1Loss()
 optimizer = optim.Adam(model.parameters(), lr=opt.initial_lr)
 
 # Learning rate scheduler
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=12, gamma=0.1)
 
-with open(f'/home/bwr9054/TSF-Net/data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
+with open(f'/home/nwn9209/TSF-Net/data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
     stats = pickle.load(f)
 
 dct_min = torch.from_numpy(stats['dct_input']['min'][None, :, None, None]).float().to(opt.device)
@@ -38,7 +41,7 @@ dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float
 
 # Training loop
 for epoch in range(opt.num_epochs):
-    epoch_start_time = time.time()
+    epoch_start_time = time.time()  
     for se_idx in range(len(opt.senarios)):
         opt.se_idx = se_idx
         running_loss = 0.0
@@ -82,11 +85,7 @@ for epoch in range(opt.num_epochs):
         torch.save(model.state_dict(), model_save_path)
         print(f"Model saved to {model_save_path}")
 
-# save final model
-final_model_dir = './save_models'
-final_model_name = "model_final.pth"
-final_model_save_path = os.path.join(final_model_dir, final_model_name)
-if not os.path.exists(final_model_dir):
-    os.makedirs(final_model_dir, exist_ok=True)
-torch.save(model.state_dict(), final_model_save_path)
-print(f"Final model saved to {final_model_save_path}")
+model_name  = f"model_epoch_{opt.num_epochs}.pth"
+model_save_path = os.path.join(model_dir,model_name)
+torch.save(model.state_dict(), model_save_path)
+print(f"Model saved to {model_save_path}")

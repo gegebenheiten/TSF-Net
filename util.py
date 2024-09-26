@@ -15,6 +15,8 @@ def group_data(data, group_size):
     grouped_data = []
     # 按照步长为 group_size 分组
     ends = (len(data) // group_size) * group_size
-    for i in range(0, ends, group_size):
+    
+    for i in range(0, ends, group_size-1):
         grouped_data.append(data[i: i + group_size])
     return grouped_data
+
