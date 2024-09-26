@@ -6,7 +6,7 @@ class SimpleOptions():
         self.initialized = False
 
     def initialize(self):
-        self.parser.add_argument('--batch_size', type=int, default=8, help='input batch size')
+        self.parser.add_argument('--batch_size', type=int, default=4, help='input batch size')
         self.parser.add_argument('--initial_lr', type=float, default=1e-4, help='initial learning rate')
         self.parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs to train')
         self.parser.add_argument('--gpu_ids', type=str, default='cuda:2', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for cpu')
