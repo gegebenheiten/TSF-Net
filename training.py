@@ -20,7 +20,7 @@ n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
 senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir,'3_TRAINING')) if f.is_dir()]
 opt.senarios = senarios
 
-opt.senarios  = ['may29_handheld_04']
+#opt.senarios  = ['may29_handheld_04']
 # Prepare data
 train_dataset = demoDataset(opt)
 train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False)
