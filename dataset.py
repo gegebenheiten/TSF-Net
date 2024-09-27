@@ -112,7 +112,7 @@ class demoDataset(torch.utils.data.Dataset):
         I0 = self.transforms_toTensor(I0)
         I1 = self.transforms_toTensor(I1)
         label = self.transforms_toTensor(label)
-        if voxel_eve_0_t.max() != 0:
+        if voxel_eve_0_t.max() != 0 or voxel_eve_1_t.max() != 0 :
             voxel_eve_0_t = voxel_eve_0_t / voxel_eve_0_t.max()
             voxel_eve_1_t = voxel_eve_1_t / voxel_eve_1_t.max()
         voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t)
