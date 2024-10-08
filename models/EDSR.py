@@ -44,8 +44,11 @@ class MSTFusionBlock(nn.Module):
 
 
 class EDSR(nn.Module):
-    def __init__(self, conv=default_conv):
+    def __init__(self, n_blocks, dct_max, dct_min, conv=default_conv):
         super(EDSR, self).__init__()
+        self.n_blocks = n_blocks
+        self.register_buffer('dct_min', dct_min)
+        self.register_buffer('dct_max', dct_max)
 
         # in_channel_img = 4
         in_channel_img = 12 # (4x3)
@@ -108,7 +111,7 @@ class EDSR(nn.Module):
         self.tail = conv(dim_imgfeat, out_channel, kernel_size)
         self.pix_shuffle = nn.PixelShuffle(2)
 
-    def forward(self, args, left_image, left_events, right_image, right_events, n_blocks, dct_max, dct_min):
+    def forward(self, args, left_image, left_events, right_image, right_events):
         b, c, h, w = left_image.shape
         #----------------------------------------------------------------------
 
@@ -117,13 +120,13 @@ class EDSR(nn.Module):
         img_right = F.pixel_unshuffle(right_image, args.block_size//2)
 
         # create blocks (say, bxcx4x4) to be applied by DCT 
-        img_block = torch.cat((blockify(left_image, n_blocks, args.block_size),
-                                blockify(right_image, n_blocks, args.block_size)), dim=1)
+        img_block = torch.cat((blockify(left_image, self.n_blocks, args.block_size),
+                                blockify(right_image, self.n_blocks, args.block_size)), dim=1)
 
         dct_block = dct_2d(img_block, norm='ortho')
 
-        img_left_dct = unblockify(dct_block[:, 0:n_blocks], [b, c, h, w], n_blocks, args.block_size)
-        img_right_dct = unblockify(dct_block[:, n_blocks:2*n_blocks], [b, c, h, w], n_blocks, args.block_size)
+        img_left_dct = unblockify(dct_block[:, 0:self.n_blocks], [b, c, h, w], self.n_blocks, args.block_size)
+        img_right_dct = unblockify(dct_block[:, self.n_blocks:2*self.n_blocks], [b, c, h, w], self.n_blocks, args.block_size)
 
         img_left_dct = F.pixel_unshuffle(img_left_dct, args.block_size)
         img_right_dct = F.pixel_unshuffle(img_right_dct, args.block_size)
@@ -131,8 +134,8 @@ class EDSR(nn.Module):
         # img_dct = (img_dct -  dct_min[:,:16,:,:])/(dct_max[:,:16,:,:] - dct_min[:,:16,:,:])
         # res_dct = (res_dct -  dct_min[:,32:,:,:])/(dct_max[:,32:,:,:] - dct_min[:,32:,:,:])
 
-        img_left_dct = (img_left_dct - dct_min[:, :16, :, :].repeat(1, 3, 1, 1)) / (dct_max[:, :16, :, :].repeat(1, 3, 1, 1) - dct_min[:, :16, :, :].repeat(1, 3, 1, 1))
-        img_right_dct = (img_right_dct - dct_min[:, 32:, :, :].repeat(1, 3, 1, 1)) / (dct_max[:, 32:, :, :].repeat(1, 3, 1, 1) - dct_min[:, 32:, :, :].repeat(1, 3, 1, 1))
+        img_left_dct = (img_left_dct - self.dct_min[:, :16, :, :].repeat(1, 3, 1, 1)) / (self.dct_max[:, :16, :, :].repeat(1, 3, 1, 1) - self.dct_min[:, :16, :, :].repeat(1, 3, 1, 1))
+        img_right_dct = (img_right_dct - self.dct_min[:, 32:, :, :].repeat(1, 3, 1, 1)) / (self.dct_max[:, 32:, :, :].repeat(1, 3, 1, 1) - self.dct_min[:, 32:, :, :].repeat(1, 3, 1, 1))
 
         #----------------------------------------------------------------------
         x_pix_left = self.head_pix_left(img_left)
