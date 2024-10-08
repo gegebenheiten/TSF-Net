@@ -10,12 +10,14 @@ import os
 from basic_option import SimpleOptions
 import pickle
 import time
+
 def main():
     # initialize parser
     option = SimpleOptions()
     opt = option.parse()
     opt.isTrain = True
-    opt.device = torch.device(opt.gpu_ids)
+    # opt.device = torch.device(opt.gpu_ids)
+    opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
     senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir,'3_TRAINING')) if f.is_dir()]
@@ -26,19 +28,24 @@ def main():
     train_dataset = demoDataset(opt)
     train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False,num_workers=0)
 
+    with open(f'data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
+        stats = pickle.load(f)
+
+    dct_min = torch.from_numpy(stats['dct_input']['min'][None, :, None, None]).float().to(opt.device)
+    dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float().to(opt.device)
+
     # Initialize model, criterion, and optimizerç
-    model = EDSR().to(opt.device)
+    model = EDSR(n_blocks, dct_max, dct_min).to(opt.device)
     criterion = nn.L1Loss()
     optimizer = optim.Adam(model.parameters(), lr=opt.initial_lr)
 
     # Learning rate scheduler
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=12, gamma=0.1)
 
-    with open(f'/home/nwn9209/TSF-Net/data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
-        stats = pickle.load(f)
-
-    dct_min = torch.from_numpy(stats['dct_input']['min'][None, :, None, None]).float().to(opt.device)
-    dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float().to(opt.device)
+    # 使用DataParallel包装模型
+    if torch.cuda.device_count() > 1:
+        print("使用", torch.cuda.device_count(), "个GPU进行训练！")
+        model = nn.DataParallel(model)
 
     # Training loop
     for epoch in range(opt.num_epochs):
@@ -52,11 +59,17 @@ def main():
 
                 left_image, right_image, left_events, right_events = inputs
 
+                left_image = left_image.to(opt.device)
+                right_image = right_image.to(opt.device)
+                left_events = left_events.to(opt.device)
+                right_events = right_events.to(opt.device)
+                labels = labels.to(opt.device)
+
                 # Zero the parameter gradients
                 optimizer.zero_grad()
 
                 # Forward pass
-                output = model(opt, left_image, left_events, right_image, right_events, n_blocks, dct_max, dct_min)
+                output = model(opt, left_image, left_events, right_image, right_events)
                 loss = criterion(output, labels)
 
                 # Backward pass and optimize
@@ -80,14 +93,14 @@ def main():
 
         if (epoch + 1) % 20 == 0:
             model_dir = './save_models'
-            model_name  = f"model_epoch_{epoch+1}.pth"
+            model_name  = f"model_epoch_{epoch+1}_insert_{opt.skip_number}.pth"
             if not os.path.exists(model_dir):
                 os.makedirs(model_dir,exist_ok=True)
             model_save_path = os.path.join(model_dir,model_name)
             torch.save(model.state_dict(), model_save_path)
             print(f"Model saved to {model_save_path}")
 
-    model_name  = f"model_epoch_{opt.num_epochs}.pth"
+    model_name  = f"model_epoch_{opt.num_epochs}_insert_{opt.skip_number}.pth"
     model_save_path = os.path.join(model_dir,model_name)
     torch.save(model.state_dict(), model_save_path)
     print(f"Model saved to {model_save_path}")
