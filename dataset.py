@@ -6,7 +6,7 @@ import numpy as np
 import torchvision.transforms as transforms
 import cv2
 from event import EventSequence,events_to_voxel_grid 
-from util import get_all_file_paths, group_data
+from util import get_all_file_paths, group_image_data, group_event_data
 
 
 TIMESTAMP_COLUMN = 2
@@ -38,8 +38,8 @@ class demoDataset(torch.utils.data.Dataset):
                     get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'images')))
                 one_sinario_eve = sorted(
                     get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'events')))
-            group_image_path = group_data(one_sinario_img, self.skip_number + 2)
-            group_event_path = group_data(one_sinario_eve, self.skip_number + 2)
+            group_image_path = group_image_data(one_sinario_img, self.skip_number + 2)
+            group_event_path = group_event_data(one_sinario_eve, self.skip_number + 1)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
         self.osize = (256, 256)
@@ -57,17 +57,17 @@ class demoDataset(torch.utils.data.Dataset):
         self.voxel_eve_0_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
         self.voxel_eve_1_t = torch.zeros(self.num_bins,self.osize[0],self.osize[1]).to(self.device)
         self.label = torch.zeros(3,self.osize[0],self.osize[1]).to(self.device)
+        t = idx % self.skip_number    
         group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number+2)]
-        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number+2)]
-        t = idx % (self.skip_number+2)
+        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number+1)]
         
         eve_0_t_paths = group_event_path[:t+1]
-        eve_t_1_paths = group_event_path[t:]
+        eve_t_1_paths = group_event_path[t+1:]
         I0_path = group_image_path[0]
         I1_path = group_image_path[-1]
         I0 = Image.open(I0_path)
         I1 = Image.open(I1_path)
-        label = Image.open(group_image_path[t])
+        label = Image.open(group_image_path[t+1])
         image_height, image_width = self.osize
 
         # load timelens
@@ -112,8 +112,9 @@ class demoDataset(torch.utils.data.Dataset):
         I0 = self.transforms_toTensor(I0)
         I1 = self.transforms_toTensor(I1)
         label = self.transforms_toTensor(label)
-        if voxel_eve_0_t.max() != 0 or voxel_eve_1_t.max() != 0 :
+        if voxel_eve_0_t.max() != 0:
             voxel_eve_0_t = voxel_eve_0_t / voxel_eve_0_t.max()
+        if voxel_eve_1_t.max() != 0:
             voxel_eve_1_t = voxel_eve_1_t / voxel_eve_1_t.max()
         voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t)
         voxel_eve_1_t = torch.from_numpy(voxel_eve_1_t)

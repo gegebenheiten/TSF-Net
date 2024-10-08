@@ -10,13 +10,26 @@ def get_all_file_paths(directory):
     return file_paths
 
 
-def group_data(data, group_size):
+def group_image_data(data, group_size):
     # 初始化空列表来存储分组结果
     grouped_data = []
     # 按照步长为 group_size 分组
-    ends = (len(data) // group_size) * group_size
+    #ends = (len(data) // (group_size-1)) * (group_size-1)
     
-    for i in range(0, ends, group_size-1):
-        grouped_data.append(data[i: i + group_size])
+    for i in range(0, len(data) , group_size-1):
+        group = data[i: i + group_size]
+        if len(group)==group_size:
+            grouped_data.append(group)
+    return grouped_data
+
+def group_event_data(data, group_size):
+    # 初始化空列表来存储分组结果
+    grouped_data = []
+    # 按照步长为 group_size 分组
+    
+    for i in range(0, len(data) , group_size):
+        group = data[i: i + group_size]
+        if len(group)==group_size:
+            grouped_data.append(group)
     return grouped_data
 

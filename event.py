@@ -157,8 +157,8 @@ def load_events(file):
     """
     tmp = np.load(file, allow_pickle=True)
     (x, y, timestamp, polarity) = (
-        tmp["x"].astype(np.float64).reshape((-1,)),
-        tmp["y"].astype(np.float64).reshape((-1,)),
+        (tmp["x"].astype(np.float64).reshape((-1,)))/32,
+        (tmp["y"].astype(np.float64).reshape((-1,)))/32,
         tmp["timestamp"].astype(np.float64).reshape((-1,)),
         tmp["polarity"].astype(np.float32).reshape((-1,)) * 2 - 1,
     )
