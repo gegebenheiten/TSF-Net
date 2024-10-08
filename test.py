@@ -129,7 +129,7 @@ def denormalize_output(output):
     output = output.clip(0, 255)  # 确保数值在 [0, 255] 范围内
     return output.astype(np.uint8)
 # initialize parser
-'''option = SimpleOptions()
+option = SimpleOptions()
 opt = option.parse()
 opt.isTrain = False
 opt.device = torch.device(opt.gpu_ids)
@@ -158,9 +158,10 @@ result_mse = []
 result_mae = []
 result_psnr = []
 result_ssim = []
-idx = 0
+
 with torch.no_grad():  # 不计算梯度
     for se_idx in range(len(opt.senarios)):
+        idx = 0
         for i, (inputs, labels)  in enumerate(test_loader):
             opt.se_idx = se_idx  # 假设输入数据键为 'input'
             left_image, right_image, left_events, right_events = inputs
@@ -174,12 +175,12 @@ with torch.no_grad():  # 不计算梯度
             result_mae.append(mae(labels, output))
             #result_ssim.append(ssim(labels, output))
             result_psnr.append(psnr(labels, output))
-            output = np.array([cv2.resize(output[i, :, :], (970, 625)) for i in range(output.shape[0])])
+            output = np.array([cv2.resize(output[j, :, :], (970, 625)) for j in range(output.shape[0])])
             output = np.transpose(output, (1, 2, 0))  # 转换维度为 (H, W, 3)
-            if i% (opt.skip_number+2) == 0:
+            if idx% (opt.skip_number+1) == 0:
                 left_image_path = os.path.join(dir, f'{idx}.png')
                 left_image = left_image.squeeze(0).cpu().numpy()
-                left_image = np.array([cv2.resize(left_image[i, :, :], (970, 625)) for i in range(left_image.shape[0])])
+                left_image = np.array([cv2.resize(left_image[j, :, :], (970, 625)) for j in range(left_image.shape[0])])
                 left_image = np.transpose(left_image, (1, 2, 0))  # 转换维度为 (H, W, 3)
                 save_output_as_png(denormalize_output(output=left_image), left_image_path)
                 idx +=1
@@ -193,21 +194,21 @@ with torch.no_grad():  # 不计算梯度
         right_image = np.transpose(right_image, (1, 2, 0))  # 转换维度为 (H, W, 3)
         save_output_as_png(denormalize_output(output=right_image), right_image_path)
         print(np.mean(result_mse), np.mean(result_mae), np.mean(result_psnr), np.mean(result_ssim)) 
-    '''
 
-'''image_folder = "output/ball_05"  # 替换为你的 PNG 文件夹路径
+
+image_folder = "output/ball_05"  # 替换为你的 PNG 文件夹路径
 output_video = "./output_video.mp4"  # 输出 MP4 文件名
 fps = 30 # 设置帧率
 
 images_to_video(image_folder, output_video, fps = 30)
 
-'''
+
 
 
 input_folder = "EXP1_dataset/1_TEST/ball_05/images"  # 替换为你的 PNG 文件夹路径
 input_video = "./input.mp4"  # 输出 MP4 文件名
 fps = 30 # 设置帧率
 
-images_to_video(input_folder, input_video,7, fps)
+images_to_video(input_folder, input_video,3, fps)
 
 
