@@ -15,9 +15,11 @@ import cv2
 from PIL import Image
 import re
 import copy
+import pdb
 def ssim(img_org, img1):
-    
-    return compare_ssim(img_org, img1,multichannel=True)
+    ssim_value, _ = compare_ssim(img_org, img1, win_size=7, channel_axis=0, full=True)
+    return ssim_value
+
 def psnr(img1, img2, const=1):
     mse = np.mean( (img1/const - img2/const) ** 2 )
     if mse == 0:
@@ -90,7 +92,7 @@ def images_to_video(image_folder, output_video, skip=None ,fps=30):
 
         files =[]
         for i in range(0, len(sorted_files), (skip + 1)):
-            for _ in range(skip):
+            for _ in range(skip+1):
                 files.append(sorted_files[i])
     
     # 读取第一张图片，获取帧的尺寸
@@ -133,26 +135,34 @@ option = SimpleOptions()
 opt = option.parse()
 opt.isTrain = False
 opt.device = torch.device(opt.gpu_ids)
-senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir,'1_TEST')) if f.is_dir()]
-opt.senarios = senarios
+# senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir,'1_TEST')) if f.is_dir()]
+# opt.senarios = senarios
 opt.senarios = ['ball_05']
 
-n_blocks = (256 // opt.block_size) * (256 // opt.block_size)
-new_size = (970, 675)
+n_blocks = (opt.image_height // opt.block_size) * (opt.image_width // opt.block_size)
+new_size = (opt.image_height, opt.image_width)
 # Prepare data
 test_dataset = demoDataset(opt)
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
-with open(f'/home/nwn9209/TSF-Net/data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
+with open(f'data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
     stats = pickle.load(f)
 
 dct_min = torch.from_numpy(stats['dct_input']['min'][None, :, None, None]).float().to(opt.device)
 dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float().to(opt.device)
 # Initialize model, criterion, and optimizer
-model = EDSR().to(opt.device)
-model_path = '/home/nwn9209/TSF-Net/save_models/model_epoch_100.pth'
+model = EDSR(n_blocks, dct_max, dct_min).to(opt.device)
+
+model_path = 'save_models/model_epoch_60_batch_4_insert_1.pth'
 state_dict = torch.load(model_path)
-model.load_state_dict(state_dict)
+new_state_dict = {}
+for key in state_dict:
+    if key.startswith('module.'):
+        new_state_dict[key[7:]] = state_dict[key]  # 去掉 'module.' 前缀
+    else:
+        new_state_dict[key] = state_dict[key]
+
+model.load_state_dict(new_state_dict)
 model.eval() 
 result_mse = []
 result_mae = []
@@ -168,47 +178,45 @@ with torch.no_grad():  # 不计算梯度
             dir =os.path.join('./output', opt.senarios[opt.se_idx])
             if not os.path.exists(dir):
                 os.makedirs(dir,exist_ok=True)
-            output = model(opt, left_image, left_events, right_image, right_events, n_blocks, dct_max, dct_min) # 生成预测
+            output = model(opt, left_image, left_events, right_image, right_events) # 生成预测
             output = denormalize_output(output=output.squeeze(0).cpu().numpy())
             labels = denormalize_output(labels.squeeze(0).cpu().numpy())
             result_mse.append(mse(labels, output))
             result_mae.append(mae(labels, output))
-            #result_ssim.append(ssim(labels, output))
+            result_ssim.append(ssim(labels, output))
             result_psnr.append(psnr(labels, output))
-            output = np.array([cv2.resize(output[j, :, :], (970, 625)) for j in range(output.shape[0])])
+            output = np.array([cv2.resize(output[j, :, :], new_size) for j in range(output.shape[0])])
             output = np.transpose(output, (1, 2, 0))  # 转换维度为 (H, W, 3)
             if idx% (opt.skip_number+1) == 0:
                 left_image_path = os.path.join(dir, f'{idx}.png')
                 left_image = left_image.squeeze(0).cpu().numpy()
-                left_image = np.array([cv2.resize(left_image[j, :, :], (970, 625)) for j in range(left_image.shape[0])])
+                left_image = np.array([cv2.resize(left_image[j, :, :], new_size) for j in range(left_image.shape[0])])
                 left_image = np.transpose(left_image, (1, 2, 0))  # 转换维度为 (H, W, 3)
                 save_output_as_png(denormalize_output(output=left_image), left_image_path)
                 idx +=1
             name = f'{idx}.png'
             idx +=1
-            path = os.path.join(dir, name )
+            path = os.path.join(dir, name)
             save_output_as_png(output, path)
         right_image_path = os.path.join(dir, f'{idx}.png')
         right_image = right_image.squeeze(0).cpu().numpy()
-        right_image = np.array([cv2.resize(right_image[i, :, :], (970, 625)) for i in range(right_image.shape[0])])
+        right_image = np.array([cv2.resize(right_image[i, :, :], new_size) for i in range(right_image.shape[0])])
         right_image = np.transpose(right_image, (1, 2, 0))  # 转换维度为 (H, W, 3)
         save_output_as_png(denormalize_output(output=right_image), right_image_path)
-        print(np.mean(result_mse), np.mean(result_mae), np.mean(result_psnr), np.mean(result_ssim)) 
+    print(np.mean(result_mse), np.mean(result_mae), np.mean(result_psnr), np.mean(result_ssim)) 
 
 
 image_folder = "output/ball_05"  # 替换为你的 PNG 文件夹路径
-output_video = "./output_video.mp4"  # 输出 MP4 文件名
+output_video = "./ball_05_epoch_60_insert_1.mp4"  # 输出 MP4 文件名
 fps = 30 # 设置帧率
 
 images_to_video(image_folder, output_video, fps = 30)
 
+# input_folder = "data/bs_ergb/1_TEST/ball_06/images"  
+# input_video = "./input_ball_06.mp4"  
+# fps = 30 # 设置帧率
 
+# images_to_video(input_folder, input_video, 1, fps)
 
-
-input_folder = "EXP1_dataset/1_TEST/ball_05/images"  # 替换为你的 PNG 文件夹路径
-input_video = "./input.mp4"  # 输出 MP4 文件名
-fps = 30 # 设置帧率
-
-images_to_video(input_folder, input_video,3, fps)
-
-
+# GT_video = "./GT_ball_06.mp4"  
+# images_to_video(input_folder, GT_video)

@@ -42,13 +42,11 @@ class demoDataset(torch.utils.data.Dataset):
             group_event_path = group_event_data(one_sinario_eve, self.skip_number + 1)
             self.img_path_list.append(group_image_path)
             self.event_path_list.append(group_event_path)
-        self.osize = (256, 256)
+        self.osize = (opt.image_height, opt.image_width) # (972, 628)
         self.device = torch.device(self.opt.gpu_ids)
-        
         
 
     def __len__(self):
-
         return len(self.img_path_list[self.opt.se_idx] * self.skip_number)
 
     def __getitem__(self, idx):
@@ -104,10 +102,10 @@ class demoDataset(torch.utils.data.Dataset):
         I1 = self.transforms_scale(I1)
         label = self.transforms_scale(label)
 
-        voxel_eve_0_t = np.array(
-            [cv2.resize(voxel_eve_0_t[i, :, :], (256, 256)) for i in range(voxel_eve_0_t.shape[0])])
-        voxel_eve_1_t = np.array(
-            [cv2.resize(voxel_eve_1_t[i, :, :], (256, 256)) for i in range(voxel_eve_1_t.shape[0])])
+        # voxel_eve_0_t = np.array(
+        #     [cv2.resize(voxel_eve_0_t[i, :, :], (self.osize[0],self.osize[1])) for i in range(voxel_eve_0_t.shape[0])])
+        # voxel_eve_1_t = np.array(
+        #     [cv2.resize(voxel_eve_1_t[i, :, :], (self.osize[0],self.osize[1])) for i in range(voxel_eve_1_t.shape[0])])
 
         I0 = self.transforms_toTensor(I0)
         I1 = self.transforms_toTensor(I1)
