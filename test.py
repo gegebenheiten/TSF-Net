@@ -7,33 +7,16 @@ from dataset import demoDataset
 import numpy  as np
 import os
 from basic_option import SimpleOptions
+from util import save_output_as_png, denormalize_output, images_to_video, ssim, psnr, mse, mae
 import pickle
 import time
-from skimage.metrics import structural_similarity as compare_ssim
 import math
 import cv2
 from PIL import Image
 import re
 import copy
 import pdb
-def ssim(img_org, img1):
-    ssim_value, _ = compare_ssim(img_org, img1, win_size=7, channel_axis=0, full=True)
-    return ssim_value
 
-def psnr(img1, img2, const=1):
-    mse = np.mean( (img1/const - img2/const) ** 2 )
-    if mse == 0:
-        return 100
-    PIXEL_MAX = 255.0
-    return 20 * math.log10(PIXEL_MAX / math.sqrt(mse))
-
-def mse(img1, img2, const=255):
-    mse = np.mean( (img1/const - img2/const) ** 2 )
-    return mse
-    
-def mae(img1, img2, const=255): 
-    mae = np.mean( abs(img1/const - img2/const)  )
-    return mae   
 
 '''def images_to_video(image_folder, output_video, repeat =None ,fps=30):
     
@@ -74,66 +57,12 @@ def mae(img1, img2, const=255):
     print(f"Video saved as {output_video}")
 '''
 
-def images_to_video(image_folder, output_video, skip=None ,fps=30):
-    
-    # 获取所有 PNG 文件的路径，并按文件名排序
-    images = [img for img in sorted(os.listdir(image_folder)) if img.endswith(".png")]
-    sorted_files = sorted(images, key=lambda x: int(re.search(r'\d+', x).group()))
-    
-    # 检查文件夹是否有图片
-    if len(sorted_files) == 0:
-        print("No PNG images found in the folder.")
-        return
-    files = copy.deepcopy(sorted_files)
-    if skip is not None:
-
-        '''sorted_files = [img for img in range(0,len(sorted_files),(skip+1))]
-        sorted_files = [img for img in sorted_files for _ in range(skip)]'''
-
-        files =[]
-        for i in range(0, len(sorted_files), (skip + 1)):
-            for _ in range(skip+1):
-                files.append(sorted_files[i])
-    
-    # 读取第一张图片，获取帧的尺寸
-    first_image_path = os.path.join(image_folder, files[0])
-    frame = cv2.imread(first_image_path)
-    if frame is None:
-        print(f"Error reading the first image: {first_image_path}")
-        return
-    height, width, layers = frame.shape
-
-    # 初始化视频写入对象
-    fourcc = cv2.VideoWriter_fourcc(*"XVID")
-    video = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
-
-    for image_file in files:
-        image_path = os.path.join(image_folder, image_file)
-        frame = cv2.imread(image_path)  # 读取每张图片
-        if frame is None:
-            print(f"Error reading image: {image_path}")
-            continue
-        
-        # 将图片写入视频
-        video.write(frame)
-
-    video.release()
-    print(f"Video saved as {output_video}")
-
-
-
-def save_output_as_png(output, file_name):
-    output_image = Image.fromarray(output)
-    output_image.save(file_name)
-
-def denormalize_output(output):
-    output = (output + 1.0) * 127.5  # 将 [-1, 1] 转换到 [0, 255]
-    output = output.clip(0, 255)  # 确保数值在 [0, 255] 范围内
-    return output.astype(np.uint8)
 # initialize parser
 option = SimpleOptions()
 opt = option.parse()
 opt.isTrain = False
+opt.isValidate = False
+opt.isTest = True
 opt.device = torch.device(opt.gpu_ids)
 # senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir,'1_TEST')) if f.is_dir()]
 # opt.senarios = senarios
@@ -153,7 +82,7 @@ dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float
 # Initialize model, criterion, and optimizer
 model = EDSR(n_blocks, dct_max, dct_min).to(opt.device)
 
-model_path = 'save_models/model_epoch_60_batch_4_insert_1.pth'
+model_path = 'save_models/model_epoch_100_batch_16_insert_1.pth'
 state_dict = torch.load(model_path)
 new_state_dict = {}
 for key in state_dict:
@@ -185,12 +114,12 @@ with torch.no_grad():  # 不计算梯度
             result_mae.append(mae(labels, output))
             result_ssim.append(ssim(labels, output))
             result_psnr.append(psnr(labels, output))
-            output = np.array([cv2.resize(output[j, :, :], new_size) for j in range(output.shape[0])])
+            # output = np.array([cv2.resize(output[j, :, :], new_size) for j in range(output.shape[0])])
             output = np.transpose(output, (1, 2, 0))  # 转换维度为 (H, W, 3)
             if idx% (opt.skip_number+1) == 0:
                 left_image_path = os.path.join(dir, f'{idx}.png')
                 left_image = left_image.squeeze(0).cpu().numpy()
-                left_image = np.array([cv2.resize(left_image[j, :, :], new_size) for j in range(left_image.shape[0])])
+                # left_image = np.array([cv2.resize(left_image[j, :, :], new_size) for j in range(left_image.shape[0])])
                 left_image = np.transpose(left_image, (1, 2, 0))  # 转换维度为 (H, W, 3)
                 save_output_as_png(denormalize_output(output=left_image), left_image_path)
                 idx +=1
@@ -207,16 +136,16 @@ with torch.no_grad():  # 不计算梯度
 
 
 image_folder = "output/ball_05"  # 替换为你的 PNG 文件夹路径
-output_video = "./ball_05_epoch_60_insert_1.mp4"  # 输出 MP4 文件名
+output_video = f"./ball_05_large_insert_{opt.skip_number}.mp4"  # 输出 MP4 文件名
 fps = 30 # 设置帧率
 
 images_to_video(image_folder, output_video, fps = 30)
 
-# input_folder = "data/bs_ergb/1_TEST/ball_06/images"  
-# input_video = "./input_ball_06.mp4"  
+# input_folder = "data/bs_ergb/1_TEST/ball_05/images"  
+# input_video = "./input_ball_05.mp4"  
 # fps = 30 # 设置帧率
 
 # images_to_video(input_folder, input_video, 1, fps)
 
-# GT_video = "./GT_ball_06.mp4"  
+# GT_video = "./GT_ball_05.mp4"  
 # images_to_video(input_folder, GT_video)
