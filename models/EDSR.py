@@ -1,3 +1,4 @@
+import pdb
 import sys
 import os
 
@@ -21,7 +22,7 @@ def default_conv(in_channels, out_channels, kernel_size, bias=True, groups=1):
         padding=(kernel_size // 2), bias=bias, groups=groups)
 
 class MSTFusionBlock(nn.Module):
-    def __init__(self, dim_imgfeat, dim_dctfeat, kernel_size=3, conv=default_conv):
+    def __init__(self, dim_imgfeat, dim_dctfeat, kernel_size=3, conv=default_conv, group_idx=1):
         super(MSTFusionBlock, self).__init__()
 
         self.conv_img = nn.Sequential(conv(dim_imgfeat, dim_imgfeat, kernel_size=kernel_size),
@@ -33,9 +34,10 @@ class MSTFusionBlock(nn.Module):
                                       conv(dim_dctfeat, dim_dctfeat, kernel_size=kernel_size))
 
         self.stage_tconv = nn.ConvTranspose2d(dim_dctfeat, dim_dctfeat, kernel_size=kernel_size, stride=2, padding=(kernel_size//2))
-        self.msab = MST.MSAB(dim_in=(dim_imgfeat+dim_dctfeat), dim_head=(dim_imgfeat+dim_dctfeat), dim_out=dim_imgfeat, heads=4, num_blocks=1)
+        self.msab = MST.MSAB(dim_in=(dim_imgfeat+dim_dctfeat), dim_head=(dim_imgfeat+dim_dctfeat), dim_out=dim_imgfeat, heads=4, num_blocks=1, group_idx=group_idx)
 
     def forward(self, in_pix, in_dct):
+        # pdb.set_trace()
         out_pix = self.conv_img(in_pix)
         out_dct = self.conv_dct(in_dct)
         out_pix = self.msab(out_pix, self.stage_tconv(out_dct, output_size=in_pix.shape[2:]))
@@ -60,7 +62,7 @@ class EDSR(nn.Module):
 
         dim_imgfeat_left = 64  # 48
         dim_imgfeat_event = 8
-        dim_imgfeat_right = 24  # 8
+        dim_imgfeat_right = 64  # 8
         dim_imgfeat = dim_imgfeat_left + dim_imgfeat_event * 2 + dim_imgfeat_right
 
         dim_dctfeat_left = 16
@@ -68,7 +70,7 @@ class EDSR(nn.Module):
         dim_dctfeat = dim_dctfeat_left + dim_dctfeat_right
 
         kernel_size = 3
-        n_basicblock = 10 # 20
+        n_basicblock = 12 # 20
 
         # define head module for pixel input
         self.head_pix_left = nn.Sequential(nn.Conv2d(in_channels=in_channel_img, out_channels=dim_imgfeat_left//2, kernel_size=kernel_size, padding=(kernel_size//2), stride=1),
@@ -104,7 +106,7 @@ class EDSR(nn.Module):
                                nn.Conv2d(in_channels=dim_dctfeat_right, out_channels=dim_dctfeat_right, kernel_size=kernel_size, padding=(kernel_size//2), stride=1)
                                )
 
-        self.body = nn.ModuleList([ MSTFusionBlock(dim_imgfeat, dim_dctfeat, kernel_size) for _ in range(n_basicblock) ])
+        self.body = nn.ModuleList([ MSTFusionBlock(dim_imgfeat, dim_dctfeat, kernel_size, group_idx=i) for i in range(n_basicblock) ])
 
 
         # define tail module
@@ -112,6 +114,7 @@ class EDSR(nn.Module):
         self.pix_shuffle = nn.PixelShuffle(2)
 
     def forward(self, args, left_image, left_events, right_image, right_events):
+        # pdb.set_trace()
         b, c, h, w = left_image.shape
         #----------------------------------------------------------------------
 
@@ -154,13 +157,14 @@ class EDSR(nn.Module):
                 res_pix, x_dct = layer(x_pix, x_dct)
             else:
                 res_pix, x_dct = layer(res_pix, x_dct)
-
+        
+        # pdb.set_trace()
         res_pix += x_pix
         x_pix = self.tail(res_pix)
         x_pix = self.pix_shuffle(x_pix)
 
-        x_pix += left_image
-        return x_pix
+        result = x_pix + left_image
+        return result, x_pix
 
 
 #------------------------------------------------------------------------------

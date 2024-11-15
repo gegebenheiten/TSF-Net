@@ -4,6 +4,7 @@
 https://github.com/caiyuanhao1998/MST-plus-plus
 """
 
+import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -98,11 +99,22 @@ class MS_MSA(nn.Module):
             dim_head,
             dim_out,
             heads,
+            group_idx
     ):
         super().__init__()
-        self.ds = 2
+        if group_idx < 4:
+            self.ds = 2
+        elif group_idx < 8:
+            # pdb.set_trace()
+            self.ds = 4
+        else:
+            # pdb.set_trace()
+            self.ds = 8
+
+        # self.ds = 2
         self.num_heads = heads
         self.dim_head = dim_head
+        
         self.to_q = nn.Linear(dim_in, dim_head, bias=False)
         self.to_k = nn.Linear(dim_in, dim_head, bias=False)
         self.to_v = nn.Linear(dim_in, dim_head, bias=False)
@@ -123,6 +135,7 @@ class MS_MSA(nn.Module):
         x_in: [b,h,w,c]
         return out: [b,h,w,c]
         """
+        # pdb.set_trace()
         b, h, w, c = x_in.shape
         x = self.avgpool(x_in.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
         x = x.reshape(b,h//self.ds*w//self.ds,c)
@@ -177,12 +190,13 @@ class MSAB(nn.Module):
             dim_out,
             heads,
             num_blocks,
+            group_idx
     ):
         super().__init__()
         self.blocks = nn.ModuleList([])
         for _ in range(num_blocks):
             self.blocks.append(nn.ModuleList([
-                MS_MSA(dim_in=dim_in, dim_head=dim_head, dim_out=dim_out, heads=heads),
+                MS_MSA(dim_in=dim_in, dim_head=dim_head, dim_out=dim_out, heads=heads, group_idx=group_idx),
                 None #PreNorm(dim, FeedForward(dim=dim))
             ]))
 
@@ -191,6 +205,7 @@ class MSAB(nn.Module):
         x: [b,c,h,w]
         return out: [b,c,h,w]
         """
+        # pdb.set_trace()
         x = x.permute(0, 2, 3, 1)
         x_ = x_.permute(0, 2, 3, 1)
         for (attn, ff) in self.blocks:
