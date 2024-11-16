@@ -8,7 +8,7 @@ from tqdm import tqdm
 from models.EDSR import EDSR
 from dataset import HSERGBDataset
 import numpy as np
-from skimage.metrics import structural_similarity as ssim
+from pytorch_msssim import ssim
 import os
 from basic_option import SimpleOptions
 import pickle
@@ -48,6 +48,7 @@ def validate(opt, model, val_loader, writer, epoch):
     step = 0
     val_loss = 0.0
     ssim_sum = 0.0
+    L1_loss_sum = 0.0
     with torch.no_grad():  
         for loader in val_loader:
             for i, (events_forward, events_backward, left_image, right_image, gt_image, weight, [n_left, n_right],
@@ -69,24 +70,28 @@ def validate(opt, model, val_loader, writer, epoch):
                     # Calculate loss
                     output_denorm = (output + 1) / 2
                     labels_denorm = (gt_image + 1) / 2
-                    L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
-                    ssim_error = calculate_ssim(labels_denorm, output_denorm)
-                    loss = L1_loss * 0.15 + ssim_error * 0.85
+                    L1_loss = nn.L1Loss(output_denorm, labels_denorm)
+                    ssim_error = ssim( labels_denorm, output_denorm, data_range=255, size_average=True)
+                    loss = L1_loss * 0.15 + (1 - ssim_error)  * 0.85
                     val_loss += loss.item()
                     ssim_sum += ssim_error
-
+                    L1_loss_sum += L1_loss.item()
+                    
                     step+=1
-
+                    
     # Average validation loss and SSIM
     avg_val_loss = val_loss / step
+    avg_L1_loss = L1_loss_sum / step
     avg_ssim = ssim_sum / step
     residue_denorm = (residue + 1) / 2
 
     # Log validation metrics
     writer.add_scalar('Loss/validation', avg_val_loss, epoch)
-    writer.add_scalar('Metrics/Structural Similarity Index (Validation)', avg_ssim, epoch)
+    writer.add_scalar('Loss/validation/L1_loss', avg_L1_loss, epoch)
+    writer.add_scalar('Loss/Structural Similarity Index (Validation)', avg_ssim, epoch)
     writer.add_images('Model Residue(validation)', residue_denorm, epoch)
     print(f'Validation Loss: {avg_val_loss:.4f}, Average SSIM: {avg_ssim:.4f}')
+
 
 def main():
     option = SimpleOptions()
@@ -138,6 +143,7 @@ def main():
         epoch_start_time = time.time()
         running_loss = 0.0
         train_loss = 0.0
+        L1_loss_sum = 0.0
         mse_sum = 0.0
         mae_sum = 0.0
         ssim_sum = 0.0
@@ -162,8 +168,8 @@ def main():
                 output_denorm = (output + 1) / 2  # Denormalize to 0-1
                 labels_denorm = (gt_image + 1) / 2
                 L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
-                ssim_error = calculate_ssim(labels_denorm, output_denorm)
-                loss = L1_loss + (1- ssim_error)
+                ssim_error = ssim( labels_denorm, output_denorm, data_range=255, size_average=True)
+                loss = L1_loss * 0.15 + (1 - ssim_error) * 0.85
                 
                 loss.backward()
                 optimizer.step()
@@ -173,6 +179,7 @@ def main():
                 psnr_error = psnr(labels_denorm, output_denorm)
 
                 train_loss += loss.item()
+                L1_loss_sum += L1_loss.item()
                 mse_sum += mean_square_error
                 mae_sum += mean_absolute_error
                 ssim_sum += ssim_error
@@ -190,11 +197,13 @@ def main():
         # writer.add_images('Model Output', output_denorm, epoch)
         # writer.add_images('Ground Truth', labels_denorm, epoch)
         avg_train_loss = train_loss / step
+        avg_L1_loss = L1_loss_sum / step
         avg_mse_error = mse_sum / step
         avg_mae_error = mae_sum / step
         avg_ssim = ssim_sum / step
         avg_psnr = psnr_sum / step
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
+        writer.add_scalar('Loss/train/L1_loss', avg_L1_loss, epoch)
         writer.add_scalar('Metrics/Mean Squared Error', avg_mse_error, epoch)
         writer.add_scalar('Metrics/Mean Absolute Error', avg_mae_error, epoch)
         writer.add_scalar('Metrics/Structural Similarity Index', avg_ssim, epoch)
