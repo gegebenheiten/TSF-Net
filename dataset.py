@@ -1,117 +1,101 @@
-import torch
-import torch.nn as nn
-import os
-from PIL import Image
-import numpy as np
-import torchvision.transforms as transforms
+import sys
+from torchvision import transforms
 import cv2
-from event import EventSequence, events_to_voxel_grid
-from util import get_all_file_paths, group_image_data, group_event_data, randomcrop, centercrop, padding
-
+import os
+from tools import representation, event
+from PIL import Image
+from util import  randomcrop, centercrop, padding
+import numpy as np
 TIMESTAMP_COLUMN = 2
 X_COLUMN = 0
 Y_COLUMN = 1
 POLARITY_COLUMN = 3
 
-class demoDataset(torch.utils.data.Dataset):
-    def __init__(self, opt, se_idx=None):
-        self.skip_number = opt.skip_number
-        self.opt = opt
-        self.num_bins = 5
-        if se_idx is not None:
-            self.opt.se_idx = se_idx
-        elif not hasattr(self.opt, 'se_idx'):
-            self.opt.se_idx = 0
-        self.img_path_list = []
-        self.event_path_list = []
-        
-        for senario in self.opt.senarios:
-            if self.opt.isTrain:
-                one_sinario_img = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir, '3_TRAINING', senario, 'images')))
-                one_sinario_eve = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir, '3_TRAINING', senario, 'events')))
-            elif self.opt.isValidate:
-                one_sinario_img = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir, '2_VALIDATION', senario, 'images')))
-                one_sinario_eve = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir, '2_VALIDATION', senario, 'events')))
-            else:
-                one_sinario_img = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'images')))
-                one_sinario_eve = sorted(get_all_file_paths(os.path.join(self.opt.data_root_dir, '1_TEST', senario, 'events')))
-            
-            group_image_path = group_image_data(one_sinario_img, self.skip_number + 2)
-            group_event_path = group_event_data(one_sinario_eve, self.skip_number + 1)
-            self.img_path_list.append(group_image_path)
-            self.event_path_list.append(group_event_path)
+class HSERGBDataset:
+    def __init__(self, data_path='/home/lisiqi/data/HSERGB', mode='train', folder='', number_of_frames_to_skip=15, nb_of_time_bin=20):
+        if mode not in ['train', 'test','val']:
+            raise ValueError
 
-        self.osize = (opt.image_height, opt.image_width)  # (972, 628)
-        self.device = torch.device(self.opt.gpu_ids)
+        self.folder = os.path.join(data_path, mode, folder)
+        self.number_of_frames_to_skip = number_of_frames_to_skip
+        print('skip %d frame' % self.number_of_frames_to_skip)
+        self.mode = mode
+        self.nb_of_time_bin = nb_of_time_bin
+        self.generate_data()
+        self.folder = folder
+        self.osize = 128
 
     def __len__(self):
-        return len(self.img_path_list[self.opt.se_idx]) * self.skip_number
+        return len(self.idx)
 
+    def generate_data(self):
+        self.left_image = []
+        self.right_image = []
+        self.gt_image = []
+        self.event = []
+        self.gt_timestamp = []
+        self.idx = []
+        self.lr_timestamp = []
+        with open(os.path.join(self.folder,'images', 'timestamp.txt'), 'r') as f:
+            ts = [float(l.strip('\n')) for l in f.readlines()]
+        N = len(ts)
+
+        for k in range(int(N/(self.number_of_frames_to_skip+1))-2):
+            rand = 0
+            start = k*(self.number_of_frames_to_skip+1) + rand
+            end = (k+1)*(self.number_of_frames_to_skip+1) + rand
+
+            self.left_image.append(os.path.join(self.folder,'images',  f'{start:06}.png'))
+            self.right_image.append(os.path.join(self.folder,'images',  f'{end:06}.png'))
+            self.event.append([os.path.join(self.folder, 'events', f'{k:06}.npz') for k in range(start, end)])
+            self.gt_image.append([os.path.join(self.folder, 'images', f'{k:06}.png') for k in range(start+1, end)])
+            self.gt_timestamp.append([ts[k] for k in range(start+1, end)])
+            self.lr_timestamp.append([ts[start], ts[end]])
+        for k in range(len(self.left_image)):
+            self.idx += [k] * len(self.gt_image[0])
+        self.start_idx = [k * len(self.gt_image[0]) for k in range(len(self.left_image))]
     def __getitem__(self, idx):
-        self.I0 = torch.zeros(3, self.osize[0], self.osize[1]).to(self.device)
-        self.I1 = torch.zeros(3, self.osize[0], self.osize[1]).to(self.device)
-        self.voxel_eve_0_t = torch.zeros(self.num_bins, self.osize[0], self.osize[1]).to(self.device)
-        self.voxel_eve_1_t = torch.zeros(self.num_bins, self.osize[0], self.osize[1]).to(self.device)
-        self.label = torch.zeros(3, self.osize[0], self.osize[1]).to(self.device)
+            seq_idx = self.idx[idx]
+            sample_idx = idx - self.start_idx[seq_idx]
+            left_image = transforms.ToTensor()(Image.open(self.left_image[seq_idx]))
+            right_image = transforms.ToTensor()(Image.open(self.right_image[seq_idx]))
 
-        t = idx % self.skip_number
-        group_image_path = self.img_path_list[self.opt.se_idx][idx // (self.skip_number + 2)]
-        group_event_path = self.event_path_list[self.opt.se_idx][idx // (self.skip_number + 1)]
+            w, h = left_image.shape[2], left_image.shape[1]
+            gt_image = transforms.ToTensor()(Image.open(self.gt_image[seq_idx][sample_idx]))
 
-        eve_0_t_paths = group_event_path[:t + 1]
-        eve_t_1_paths = group_event_path[t + 1:]
-        I0_path = group_image_path[0]
-        I1_path = group_image_path[-1]
-        I0 = Image.open(I0_path)
-        I1 = Image.open(I1_path)
-        label = Image.open(group_image_path[t + 1])
+            events = event.EventSequence.from_npz_files(self.event[seq_idx], h, w)
+            ts = self.gt_timestamp[seq_idx][sample_idx]
 
-        # Load timelens
-        eve_0_t = EventSequence.from_npz_files(list_of_filenames=eve_0_t_paths, image_height=970,
-                                               image_width=625)._features
-        eve_t_1 = EventSequence.from_npz_files(list_of_filenames=eve_t_1_paths, image_height=970,
-                                               image_width=625)
-        eve_1_t = eve_t_1._features[eve_t_1._features[:, TIMESTAMP_COLUMN].argsort()[::-1]]
+            duration_left = ts - self.lr_timestamp[seq_idx][0]
+            duration_right = self.lr_timestamp[seq_idx][1] - ts
+            weight = duration_left / (duration_left+duration_right)
+            e_left = events.filter_by_timestamp(events.start_time(), duration_left)
+            e_right = events.filter_by_timestamp(ts, duration_right)
 
-        # Convert events to voxel grid
-        voxel_eve_0_t = events_to_voxel_grid(eve_0_t, num_bins=self.num_bins, width=970, height=625)
-        voxel_eve_1_t = events_to_voxel_grid(eve_1_t, num_bins=self.num_bins, width=970, height=625)
+            event_left_forward = representation.to_count_map(e_left, self.nb_of_time_bin).clone()
+            event_right_forward = representation.to_count_map(e_right, self.nb_of_time_bin).clone()
+            
+            left_voxel_grid = representation.to_voxel_grid(e_left, nb_of_time_bins=self.nb_of_time_bin)
+            right_voxel_grid = representation.to_voxel_grid(e_right, nb_of_time_bins=self.nb_of_time_bin)
 
-        # Define transformations
-        self.transforms_toTensor = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+            e_right.reverse()
+            e_left.reverse()
+            event_left_backward = representation.to_count_map(e_left, self.nb_of_time_bin)
+            event_right_backward = representation.to_count_map(e_right, self.nb_of_time_bin)
+            events_forward = np.concatenate((event_left_forward, event_right_forward), axis=-1)
+            events_backward = np.concatenate((event_right_backward, event_left_backward), axis=-1)
 
-        self.transforms_normalize = transforms.Compose([
-            transforms.Normalize((0.5,), (0.5,)),
-        ])
+            
 
-        # Normalize and convert to tensor
-        I0 = self.transforms_toTensor(I0)
-        I1 = self.transforms_toTensor(I1)
-        label = self.transforms_toTensor(label)
-        voxel_eve_0_t = torch.from_numpy(voxel_eve_0_t)
-        voxel_eve_1_t = torch.from_numpy(voxel_eve_1_t)
+            surface = events.filter_by_timestamp(ts-200, 400)
+            surface = representation.to_count_map(surface)
 
-        if self.opt.isTrain == True or self.opt.isValidate == True:
-            I0, label, I1, voxel_eve_0_t, voxel_eve_1_t = randomcrop(I0, label, I1, voxel_eve_0_t, voxel_eve_1_t, self.osize[1], self.osize[0])
-        elif self.opt.isTest == True:
-            I0, label, I1, voxel_eve_0_t, voxel_eve_1_t = padding(I0, label, I1, voxel_eve_0_t, voxel_eve_1_t, 640, 1024)
-            # I0, label, I1, voxel_eve_0_t, voxel_eve_1_t = centercrop(I0, label, I1, voxel_eve_0_t, voxel_eve_1_t, 512, 512)
+            if self.mode == 'train' or self.mode == 'val':
+                left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = randomcrop(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, self.osize, self.osize)
+            elif self.mode == 'test':
+                left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = padding(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, 640, 1024)
+            
+            return events_forward, events_backward, left_image, right_image, gt_image, weight, \
+                 [self.nb_of_time_bin, self.nb_of_time_bin], surface, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
 
-        if voxel_eve_0_t.max() != 0:
-            voxel_eve_0_t = voxel_eve_0_t / voxel_eve_0_t.max()
-        if voxel_eve_1_t.max() != 0:
-            voxel_eve_1_t = voxel_eve_1_t / voxel_eve_1_t.max()
 
-        I0 = self.transforms_normalize(I0) 
-        I1 = self.transforms_normalize(I1)
-        label = self.transforms_normalize(label)
-
-        self.I0.copy_(I0)
-        self.I1.copy_(I1)
-        self.voxel_eve_0_t.copy_(voxel_eve_0_t)
-        self.voxel_eve_1_t.copy_(voxel_eve_1_t)
-        self.label.copy_(label)
-
-        return (self.I0, self.I1, self.voxel_eve_0_t, self.voxel_eve_1_t), self.label

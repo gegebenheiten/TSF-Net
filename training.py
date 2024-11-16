@@ -6,7 +6,7 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from models.EDSR import EDSR
-from dataset import demoDataset
+from dataset import HSERGBDataset
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import os
@@ -49,31 +49,27 @@ def validate(opt, model, val_loader, writer, epoch):
     val_loss = 0.0
     ssim_sum = 0.0
     with torch.no_grad():  
-        for se_idx in range(len(opt.val_senarios)):
-            print('Processing:', opt.val_senarios[se_idx])
-            opt.se_idx = se_idx
-            for inputs, labels in val_loader:
-                left_image, right_image, left_events, right_events = inputs
+        for inputs, labels in val_loader:
+            left_image, right_image, left_events, right_events = inputs
+            left_image = left_image.to(opt.device)
+            right_image = right_image.to(opt.device)
+            left_events = left_events.to(opt.device)
+            right_events = right_events.to(opt.device)
+            labels = labels.to(opt.device)
 
-                left_image = left_image.to(opt.device)
-                right_image = right_image.to(opt.device)
-                left_events = left_events.to(opt.device)
-                right_events = right_events.to(opt.device)
-                labels = labels.to(opt.device)
+            # Forward pass
+            output, residue = model(opt, left_image, left_events, right_image, right_events)
 
-                # Forward pass
-                output, residue = model(opt, left_image, left_events, right_image, right_events)
+            # Calculate loss
+            output_denorm = (output + 1) / 2
+            labels_denorm = (labels + 1) / 2
+            L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
+            ssim_error = calculate_ssim(labels_denorm, output_denorm)
+            loss = L1_loss * 0.15 + ssim_error * 0.85
+            val_loss += loss.item()
+            ssim_sum += ssim_error
 
-                # Calculate loss
-                output_denorm = (output + 1) / 2
-                labels_denorm = (labels + 1) / 2
-                L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
-                ssim_error = calculate_ssim(labels_denorm, output_denorm)
-                loss = L1_loss * 0.15 + ssim_error * 0.85
-                val_loss += loss.item()
-                ssim_sum += ssim_error
-
-                step+=1
+            step+=1
 
     # Average validation loss and SSIM
     avg_val_loss = val_loss / step
@@ -94,20 +90,21 @@ def main():
     opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     n_blocks = (opt.image_height // opt.block_size) * (opt.image_width // opt.block_size)
-    senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir, '3_TRAINING')) if f.is_dir()]
+    senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir, 'train')) if f.is_dir()]
     opt.senarios = senarios
 
-    val_senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir, '2_VALIDATION')) if f.is_dir()]
+    val_senarios = [f.name for f in os.scandir(os.path.join(opt.data_root_dir, 'val')) if f.is_dir()]
     opt.val_senarios = val_senarios
 
     # Prepare training data
-    train_dataset = demoDataset(opt)
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=False, num_workers=0)
-
+    train_dataset = [HSERGBDataset(opt.data_root_dir, 'train', k, opt.skip_number, opt.nmb_bins) for k in senarios]
+    train_loader = [torch.utils.data.DataLoader(train_dataset[k], batch_size=opt.batch_size, shuffle=False, pin_memory=False, num_workers=1) for k in range(len(train_dataset))]
+    # Prepare validation data
     if opt.isValidate == True:
-        val_dataset = demoDataset(opt)  
-        val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, shuffle=False, num_workers=0)
-
+        val_dataset = [HSERGBDataset(opt.data_root_dir, 'val', k, opt.skip_number, opt.nmb_bins) for k in val_senarios]
+        val_loader = [torch.utils.data.DataLoader(val_dataset[k], batch_size=1, shuffle=False, pin_memory=False, num_workers=1) for k in range(len(val_dataset))]
+    
+   
     with open(f'data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
         stats = pickle.load(f)
 
@@ -133,34 +130,34 @@ def main():
     step = 0
     for epoch in range(opt.num_epochs):
         epoch_start_time = time.time()
-        for se_idx in range(len(opt.senarios)):
-            print('Processing:', opt.senarios[se_idx])
-            opt.se_idx = se_idx
-            running_loss = 0.0
-            train_loss = 0.0
-            mse_sum = 0.0
-            mae_sum = 0.0
-            ssim_sum = 0.0
-            psnr_sum = 0.0
-            for i, (inputs, labels) in enumerate(train_loader):
+        running_loss = 0.0
+        train_loss = 0.0
+        mse_sum = 0.0
+        mae_sum = 0.0
+        ssim_sum = 0.0
+        psnr_sum = 0.0
+        for loader in train_loader:
+            for i, (events_forward, events_backward, left_image, right_image, gt_image, weight, [n_left, n_right],
+                    surface, left_voxel_grid, right_voxel_grid, name) in enumerate(loader):
+                events_forward = events_forward.cuda()
+                events_backward = events_backward.cuda()
+                left_image = left_image.cuda()
+                right_image = right_image.cuda()
+                gt_image = gt_image.cuda()
+                weight = weight.cuda()
+                surface = surface.cuda()
+                left_voxel_grid = left_voxel_grid.cuda()
+                right_voxel_grid = right_voxel_grid.cuda()
                 batch_start_time = time.time()
 
-                left_image, right_image, left_events, right_events = inputs
-
-                left_image = left_image.to(opt.device)
-                right_image = right_image.to(opt.device)
-                left_events = left_events.to(opt.device)
-                right_events = right_events.to(opt.device)
-                labels = labels.to(opt.device)
-
                 optimizer.zero_grad()
-                output, residue = model(opt, left_image, left_events, right_image, right_events)
+                output, residue = model(opt, left_image, left_voxel_grid, right_image, right_voxel_grid)
 
                 output_denorm = (output + 1) / 2  # Denormalize to 0-1
-                labels_denorm = (labels + 1) / 2
+                labels_denorm = (gt_image + 1) / 2
                 L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
                 ssim_error = calculate_ssim(labels_denorm, output_denorm)
-                # loss = L1_loss + (1- ssim_error)
+                loss = L1_loss + (1- ssim_error)
                 
                 loss.backward()
                 optimizer.step()
