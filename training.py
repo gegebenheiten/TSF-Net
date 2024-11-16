@@ -49,27 +49,33 @@ def validate(opt, model, val_loader, writer, epoch):
     val_loss = 0.0
     ssim_sum = 0.0
     with torch.no_grad():  
-        for inputs, labels in val_loader:
-            left_image, right_image, left_events, right_events = inputs
-            left_image = left_image.to(opt.device)
-            right_image = right_image.to(opt.device)
-            left_events = left_events.to(opt.device)
-            right_events = right_events.to(opt.device)
-            labels = labels.to(opt.device)
+        for loader in val_loader:
+            for i, (events_forward, events_backward, left_image, right_image, gt_image, weight, [n_left, n_right],
+                    surface, left_voxel_grid, right_voxel_grid, name) in enumerate(loader):
 
-            # Forward pass
-            output, residue = model(opt, left_image, left_events, right_image, right_events)
+                    events_forward = events_forward.cuda()
+                    events_backward = events_backward.cuda()
+                    left_image = left_image.cuda()
+                    right_image = right_image.cuda()
+                    gt_image = gt_image.cuda()
+                    weight = weight.cuda()
+                    surface = surface.cuda()
+                    left_voxel_grid = left_voxel_grid.cuda()
+                    right_voxel_grid = right_voxel_grid.cuda()
 
-            # Calculate loss
-            output_denorm = (output + 1) / 2
-            labels_denorm = (labels + 1) / 2
-            L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
-            ssim_error = calculate_ssim(labels_denorm, output_denorm)
-            loss = L1_loss * 0.15 + ssim_error * 0.85
-            val_loss += loss.item()
-            ssim_sum += ssim_error
+                    # Forward pass
+                    output, residue = model(opt, left_image, left_voxel_grid, right_image, right_voxel_grid)
 
-            step+=1
+                    # Calculate loss
+                    output_denorm = (output + 1) / 2
+                    labels_denorm = (gt_image + 1) / 2
+                    L1_loss = nn.L1Loss()(output_denorm, labels_denorm)
+                    ssim_error = calculate_ssim(labels_denorm, output_denorm)
+                    loss = L1_loss * 0.15 + ssim_error * 0.85
+                    val_loss += loss.item()
+                    ssim_sum += ssim_error
+
+                    step+=1
 
     # Average validation loss and SSIM
     avg_val_loss = val_loss / step
