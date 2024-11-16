@@ -43,7 +43,7 @@ def load_events(file):
     """
     tmp = np.load(file, allow_pickle=True)
     (x, y, timestamp, polarity) = (tmp["x"].astype(np.float64).reshape((-1,)), tmp["y"].astype(np.float64).reshape((-1,)),
-        tmp["timestamp"].astype(np.float64).reshape((-1,)), tmp["polarity"].astype(np.float32).reshape((-1,)) * 2 - 1)
+        tmp["t"].astype(np.float64).reshape((-1,)), tmp["p"].astype(np.float32).reshape((-1,)) * 2 - 1)
     events = np.stack((x, y, timestamp, polarity), axis=-1)
     if events.shape[0] == 0:
         events = np.zeros([1, 4])
