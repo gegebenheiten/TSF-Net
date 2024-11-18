@@ -157,13 +157,13 @@ class EDSR(nn.Module):
                 res_pix, x_dct = layer(x_pix, x_dct)
             else:
                 res_pix, x_dct = layer(res_pix, x_dct)
-        
-        # pdb.set_trace()
+
         res_pix += x_pix
         x_pix = self.tail(res_pix)
         x_pix = self.pix_shuffle(x_pix)
 
         result = x_pix + left_image
+        result = torch.sigmoid(result)
         return result, x_pix
 
 
