@@ -94,11 +94,11 @@ def main():
 
     # Prepare training data
     train_dataset = [HSERGBDataset(opt.data_root_dir, 'train', k, opt.skip_number, opt.nmb_bins) for k in senarios]
-    train_loader = [torch.utils.data.DataLoader(train_dataset[k], batch_size=opt.batch_size, shuffle=False, pin_memory=False, num_workers=1) for k in range(len(train_dataset))]
+    train_loader = [DataLoader(train_dataset[k], batch_size=opt.batch_size, shuffle=False, pin_memory=False, num_workers=0) for k in range(len(train_dataset))]
     # Prepare validation data
     if opt.isValidate == True:
         val_dataset = [HSERGBDataset(opt.data_root_dir, 'val', k, opt.skip_number, opt.nmb_bins) for k in val_senarios]
-        val_loader = [torch.utils.data.DataLoader(val_dataset[k], batch_size=1, shuffle=False, pin_memory=False, num_workers=1) for k in range(len(val_dataset))]
+        val_loader = [DataLoader(val_dataset[k], batch_size=1, shuffle=False, pin_memory=False, num_workers=0) for k in range(len(val_dataset))]
     
    
     with open(f'data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
@@ -148,7 +148,7 @@ def main():
                 batch_start_time = time.time()
 
                 optimizer.zero_grad()
-                output, residue = model(opt, left_image, left_voxel_grid, right_image, right_voxel_grid)
+                output, residual = model(opt, left_image, left_voxel_grid, right_image, right_voxel_grid)
 
                 L1_loss = nn.L1Loss()(output, gt_image)
                 ssim_error = ssim(gt_image, output, data_range=1.0, size_average=True)
