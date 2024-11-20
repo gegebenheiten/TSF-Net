@@ -12,7 +12,7 @@ Y_COLUMN = 1
 POLARITY_COLUMN = 3
 
 class HSERGBDataset:
-    def __init__(self, data_path='/home/lisiqi/data/HSERGB', mode='train', folder='', number_of_frames_to_skip=15, nb_of_time_bin=20):
+    def __init__(self, data_path='data/HSERGB', mode='train', folder='', number_of_frames_to_skip=15, nb_of_time_bin=20):
         if mode not in ['train', 'test','val']:
             raise ValueError
 
@@ -36,7 +36,7 @@ class HSERGBDataset:
         self.gt_timestamp = []
         self.idx = []
         self.lr_timestamp = []
-        with open(os.path.join(self.folder,'images', 'timestamp.txt'), 'r') as f:
+        with open(os.path.join(self.folder,'images_corrected', 'timestamp.txt'), 'r') as f:
             ts = [float(l.strip('\n')) for l in f.readlines()]
         N = len(ts)
 
@@ -45,10 +45,10 @@ class HSERGBDataset:
             start = k*(self.number_of_frames_to_skip+1) + rand
             end = (k+1)*(self.number_of_frames_to_skip+1) + rand
 
-            self.left_image.append(os.path.join(self.folder,'images',  f'{start:06}.png'))
-            self.right_image.append(os.path.join(self.folder,'images',  f'{end:06}.png'))
-            self.event.append([os.path.join(self.folder, 'events', f'{k:06}.npz') for k in range(start, end)])
-            self.gt_image.append([os.path.join(self.folder, 'images', f'{k:06}.png') for k in range(start+1, end)])
+            self.left_image.append(os.path.join(self.folder,'images_corrected',  f'{start:06}.png'))
+            self.right_image.append(os.path.join(self.folder,'images_corrected',  f'{end:06}.png'))
+            self.event.append([os.path.join(self.folder, 'events_aligned', f'{k:06}.npz') for k in range(start, end)])
+            self.gt_image.append([os.path.join(self.folder, 'images_corrected', f'{k:06}.png') for k in range(start+1, end)])
             self.gt_timestamp.append([ts[k] for k in range(start+1, end)])
             self.lr_timestamp.append([ts[start], ts[end]])
         for k in range(len(self.left_image)):
@@ -68,34 +68,36 @@ class HSERGBDataset:
 
             duration_left = ts - self.lr_timestamp[seq_idx][0]
             duration_right = self.lr_timestamp[seq_idx][1] - ts
-            weight = duration_left / (duration_left+duration_right)
+            # weight = duration_left / (duration_left+duration_right)
             e_left = events.filter_by_timestamp(events.start_time(), duration_left)
             e_right = events.filter_by_timestamp(ts, duration_right)
 
-            event_left_forward = representation.to_count_map(e_left, self.nb_of_time_bin).clone()
-            event_right_forward = representation.to_count_map(e_right, self.nb_of_time_bin).clone()
+            # event_left_forward = representation.to_count_map(e_left, self.nb_of_time_bin).clone()
+            # event_right_forward = representation.to_count_map(e_right, self.nb_of_time_bin).clone()
             
             left_voxel_grid = representation.to_voxel_grid(e_left, nb_of_time_bins=self.nb_of_time_bin)
             right_voxel_grid = representation.to_voxel_grid(e_right, nb_of_time_bins=self.nb_of_time_bin)
 
-            e_right.reverse()
-            e_left.reverse()
-            event_left_backward = representation.to_count_map(e_left, self.nb_of_time_bin)
-            event_right_backward = representation.to_count_map(e_right, self.nb_of_time_bin)
-            events_forward = np.concatenate((event_left_forward, event_right_forward), axis=-1)
-            events_backward = np.concatenate((event_right_backward, event_left_backward), axis=-1)
+            # e_right.reverse()
+            # e_left.reverse()
+            # event_left_backward = representation.to_count_map(e_left, self.nb_of_time_bin)
+            # event_right_backward = representation.to_count_map(e_right, self.nb_of_time_bin)
+            # events_forward = np.concatenate((event_left_forward, event_right_forward), axis=-1)
+            # events_backward = np.concatenate((event_right_backward, event_left_backward), axis=-1)
 
             
+            # surface = events.filter_by_timestamp(ts-200, 400)
+            # surface = representation.to_count_map(surface)
 
-            surface = events.filter_by_timestamp(ts-200, 400)
-            surface = representation.to_count_map(surface)
-
-            if self.mode == 'train' or self.mode == 'val':
+            if self.mode == 'train':
                 left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = randomcrop(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, self.osize, self.osize)
+            elif self.mode == 'val':
+                left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = centercrop(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, self.osize, self.osize)
             elif self.mode == 'test':
                 left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = padding(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, 640, 1024)
             
-            return events_forward, events_backward, left_image, right_image, gt_image, weight, \
-                 [self.nb_of_time_bin, self.nb_of_time_bin], surface, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
+            # return events_forward, events_backward, left_image, right_image, gt_image, weight, \
+            #      [self.nb_of_time_bin, self.nb_of_time_bin], surface, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
 
+            return left_image, right_image, gt_image, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
 
