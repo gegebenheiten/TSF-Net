@@ -1,6 +1,6 @@
 import torch
 import torch as th
-import tools.event as event
+from tools import event
 
 
 def _split_coordinate(c):
@@ -28,7 +28,11 @@ def to_voxel_grid(event_sequence, nb_of_time_bins=5, remapping_maps=None):
 
     If event stream is empty, voxel grid will be empty.
     """
-    voxel_grid = th.zeros(nb_of_time_bins, event_sequence._image_height, event_sequence._image_width, dtype=th.float32, device='cpu')
+    voxel_grid = th.zeros(nb_of_time_bins,
+                          event_sequence._image_height,
+                          event_sequence._image_width,
+                          dtype=th.float32,
+                          device='cpu')
 
     voxel_grid_flat = voxel_grid.flatten()
 
@@ -46,35 +50,35 @@ def to_voxel_grid(event_sequence, nb_of_time_bins=5, remapping_maps=None):
         remapping_maps = th.from_numpy(remapping_maps)
         x, y = remapping_maps[:,y,x]
 
-    # left_t, right_t = t.floor(), t.floor()+1
-    # left_x, right_x = x.float().floor(), x.float().floor()+1
-    # left_y, right_y = y.float().floor(), y.float().floor()+1
-    #
-    # for lim_x in [left_x, right_x]:
-    #     for lim_y in [left_y, right_y]:
-    #         for lim_t in [left_t, right_t]:
-    #             mask = (0 <= lim_x) & (0 <= lim_y) & (0 <= lim_t) & (lim_x <= event_sequence._image_width-1) \
-    #                    & (lim_y <= event_sequence._image_height-1) & (lim_t <= nb_of_time_bins-1)
-    #
-    #             # we cast to long here otherwise the mask is not computed correctly
-    #             lin_idx = lim_x.long() \
-    #                       + lim_y.long() * event_sequence._image_width \
-    #                       + lim_t.long() * event_sequence._image_width * event_sequence._image_height
-    #
-    #             weight = polarity * (1-(lim_x-x).abs()) * (1-(lim_y-y).abs()) * (1-(lim_t-t).abs())
-    #             voxel_grid_flat.index_add_(dim=0, index=lin_idx[mask], source=weight[mask].float())
+    left_t, right_t = t.floor(), t.floor()+1
+    left_x, right_x = x.floor(), x.floor()+1
+    left_y, right_y = y.floor(), y.floor()+1
 
-    lim_x = x
-    lim_y = y
-    lim_t = t
-    mask = (0 <= lim_x) & (0 <= lim_y) & (0 <= lim_t) & (lim_x <= event_sequence._image_width-1) \
-           & (lim_y <= event_sequence._image_height-1) & (lim_t <= nb_of_time_bins-1)
+    for lim_x in [left_x, right_x]:
+        for lim_y in [left_y, right_y]:
+            for lim_t in [left_t, right_t]:
+                mask = (0 <= lim_x) & (0 <= lim_y) & (0 <= lim_t) & (lim_x <= event_sequence._image_width-1) \
+                       & (lim_y <= event_sequence._image_height-1) & (lim_t <= nb_of_time_bins-1)
 
-    lin_idx = lim_x.long() + lim_y.long() * event_sequence._image_width \
-              + lim_t.long() * event_sequence._image_width * event_sequence._image_height
+                # we cast to long here otherwise the mask is not computed correctly
+                lin_idx = lim_x.long() \
+                          + lim_y.long() * event_sequence._image_width \
+                          + lim_t.long() * event_sequence._image_width * event_sequence._image_height
 
-    weight = polarity
-    voxel_grid_flat.index_add_(dim=0, index=lin_idx[mask], source=weight[mask].float())
+                weight = polarity * (1-(lim_x-x).abs()) * (1-(lim_y-y).abs()) * (1-(lim_t-t).abs())
+                voxel_grid_flat.index_add_(dim=0, index=lin_idx[mask], source=weight[mask].float())
+
+    # lim_x = x
+    # lim_y = y
+    # lim_t = t
+    # mask = (0 <= lim_x) & (0 <= lim_y) & (0 <= lim_t) & (lim_x <= event_sequence._image_width-1) \
+    #        & (lim_y <= event_sequence._image_height-1) & (lim_t <= nb_of_time_bins-1)
+
+    # lin_idx = lim_x.long() + lim_y.long() * event_sequence._image_width \
+    #           + lim_t.long() * event_sequence._image_width * event_sequence._image_height
+
+    # weight = polarity
+    # voxel_grid_flat.index_add_(dim=0, index=lin_idx[mask], source=weight[mask].float())
     return voxel_grid
 
 
@@ -127,5 +131,4 @@ def to_count_map(event_sequence, nb_of_time_bins=5):
 #     e1 = e[e[:,2] == 0, :]
 #     ecm1 = calEcm(e1)
 #     print((torch.tensor(ecm1) - ecm[:,:,:,0]).sum())
-
 
