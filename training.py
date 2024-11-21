@@ -33,6 +33,7 @@ def validate(opt, model, val_loader, writer, epoch):
     step = 0
     val_loss = 0.0
     ssim_sum = 0.0
+    ssim_loss_sum = 0.0
     L1_loss_sum = 0.0
     with torch.no_grad():  
         for loader in val_loader:
@@ -49,26 +50,30 @@ def validate(opt, model, val_loader, writer, epoch):
                 # Calculate loss
                 L1_loss = nn.L1Loss()(output, gt_image)
                 ssim_error = ssim( gt_image, output, data_range=1.0, size_average=True)
-                loss = L1_loss * 0.15 + (1 - ssim_error)  * 0.85
+                ssim_loss = 1 - ssim_error
+                loss = L1_loss * 0.15 + ssim_loss * 0.85
                 val_loss += loss.item()
                 ssim_sum += ssim_error.item()
                 L1_loss_sum += L1_loss.item()
+                ssim_loss_sum += ssim_loss.item()
                 
                 step+=1
                     
     # Average validation loss and SSIM
     avg_val_loss = val_loss / step
     avg_L1_loss = L1_loss_sum / step
+    avg_ssim_loss = ssim_loss_sum / step
     avg_ssim = ssim_sum / step
 
     # Log validation metrics
     writer.add_scalar('Loss/validation', avg_val_loss, epoch)
     writer.add_scalar('Loss/validation/L1_loss', avg_L1_loss, epoch)
+    writer.add_scalar('Loss/validation/SSIM_loss', avg_ssim_loss, epoch)
     writer.add_scalar('Loss/validation/Structural Similarity Index', avg_ssim, epoch)
     # if epoch % 10 == 0:
     #     writer.add_images('Model output/Validation', output_denorm, epoch)
     print('--------Validation-----------')
-    print(f'Validation Loss: {avg_val_loss:.4f}, Average L1_loss:{avg_L1_loss:.4f}, Average SSIM: {avg_ssim:.4f}')
+    print(f'Validation Loss: {avg_val_loss:.4f}, Average L1_loss:{avg_L1_loss:.4f}, Average SSIM loss: {avg_ssim_loss:.4f}, Average SSIM: {avg_ssim:.4f}')
     print('--------Validation-----------')
 
 
@@ -88,11 +93,11 @@ def main():
 
     # Prepare training data
     train_dataset = [HSERGBDataset(opt.data_root_dir, 'train', k, opt.skip_number, opt.nmb_bins) for k in senarios]
-    train_loader = [DataLoader(train_dataset[k], batch_size=opt.batch_size, shuffle=True, pin_memory=False, num_workers=0) for k in range(len(train_dataset))]
+    train_loader = [DataLoader(train_dataset[k], batch_size=opt.batch_size, shuffle=True, pin_memory=False, num_workers=5) for k in range(len(train_dataset))]
     # Prepare validation data
     if opt.isValidate == True:
         val_dataset = [HSERGBDataset(opt.data_root_dir, 'val', k, opt.skip_number, opt.nmb_bins) for k in val_senarios]
-        val_loader = [DataLoader(val_dataset[k], batch_size=1, shuffle=False, pin_memory=False, num_workers=0) for k in range(len(val_dataset))]
+        val_loader = [DataLoader(val_dataset[k], batch_size=1, shuffle=False, pin_memory=False, num_workers=4) for k in range(len(val_dataset))]
     
    
     with open(f'data_stats/div2k/stats_qp{opt.qp}.pkl', 'rb') as f:
@@ -110,19 +115,20 @@ def main():
     num_params = sum(p.numel() for p in model.parameters())
     print(f'Total number of parameters: {num_params}')
 
-    log_dir = f'./logs/{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    log_dir = f'./logs/{datetime.now().strftime("%Y%m%d_%H%M%S")}_batch_{opt.batch_size}_insert_{opt.skip_number}'
     writer = SummaryWriter(log_dir=log_dir)
 
-    # if torch.cuda.device_count() > 1:
-    #     print("Using", torch.cuda.device_count(), "GPUs for training!")
-    #     model = nn.DataParallel(model)
+    if torch.cuda.device_count() > 1:
+        print("Using", torch.cuda.device_count(), "GPUs for training!")
+        model = nn.DataParallel(model)
 
-    step = 0
+    
     for epoch in range(opt.num_epochs):
         epoch_start_time = time.time()
-        running_loss = 0.0
+        step = 0
         train_loss = 0.0
         L1_loss_sum = 0.0
+        ssim_loss_sum = 0.0
         mse_sum = 0.0
         mae_sum = 0.0
         ssim_sum = 0.0
@@ -141,7 +147,8 @@ def main():
 
                 L1_loss = nn.L1Loss()(output, gt_image)
                 ssim_error = ssim(gt_image, output, data_range=1.0, size_average=True)
-                loss = L1_loss * 0.15 + (1 - ssim_error) * 0.85
+                ssim_loss = 1 - ssim_error
+                loss = L1_loss * 0.15 + ssim_loss * 0.85
                 
                 loss.backward()
                 optimizer.step()
@@ -152,6 +159,7 @@ def main():
 
                 train_loss += loss.item()
                 L1_loss_sum += L1_loss.item()
+                ssim_loss_sum += ssim_loss.item()
                 mse_sum += mean_square_error.item()
                 mae_sum += mean_absolute_error.item()
                 ssim_sum += ssim_error.item()
@@ -159,7 +167,7 @@ def main():
 
                 # Log the loss and metrics to TensorBoard
                 batch_time = time.time() - batch_start_time
-                print(f"[Epoch {epoch + 1}, Senario:{name[0].split('/')[-3]}, Batch {i + 1}] Loss: {loss.item():.3f}, L1_loss:{L1_loss.item():.3f}, ssim:{ssim_error.item():.3f}, Batch Time: {batch_time:.3f} sec")
+                print(f"[Epoch {epoch + 1}, Senario:{name[0].split('/')[-3]}, Batch {i + 1}] Loss: {loss.item():.3f}, L1_loss:{L1_loss.item():.3f}, ssim_loss:{ssim_loss.item():.3f}, ssim:{ssim_error.item():.3f}, Batch Time: {batch_time:.3f} sec")
 
                 step+=1
 
@@ -171,13 +179,15 @@ def main():
         # writer.add_images('Ground Truth', labels_denorm, epoch)
         avg_train_loss = train_loss / step
         avg_L1_loss = L1_loss_sum / step
+        avg_ssim_loss = ssim_loss_sum / step
         avg_mse_error = mse_sum / step
         avg_mae_error = mae_sum / step
         avg_ssim = ssim_sum / step
         avg_psnr = psnr_sum / step
         writer.add_scalar('Loss/train', avg_train_loss, epoch)
         writer.add_scalar('Loss/train/L1_loss', avg_L1_loss, epoch)
-        writer.add_scalar('Loss/train/Structural Similarity Index', avg_ssim, epoch)
+        writer.add_scalar('Loss/train/SSIM_loss', avg_ssim_loss, epoch)
+        writer.add_scalar('Loss/train/SSIM', avg_ssim, epoch)
         writer.add_scalar('Metrics/Mean Squared Error', avg_mse_error, epoch)
         writer.add_scalar('Metrics/Mean Absolute Error', avg_mae_error, epoch)
         writer.add_scalar('Metrics/Peak Signal-to-Noise Ratio', avg_psnr, epoch)
