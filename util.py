@@ -96,24 +96,17 @@ def images_to_video(image_folder, output_video, skip=None ,fps=30):
     video.release()
     print(f"Video saved as {output_video}")
 
-def ssim(img_org, img1):
-    ssim_value, _ = compare_ssim(img_org, img1, win_size=7, channel_axis=0, full=True)
-    return ssim_value
+def mse(labels, output):
+    return torch.mean((labels - output) ** 2)
 
-def psnr(img1, img2, const=1):
-    mse = np.mean( (img1/const - img2/const) ** 2 )
-    if mse == 0:
-        return 100
-    PIXEL_MAX = 255.0
-    return 20 * math.log10(PIXEL_MAX / math.sqrt(mse))
+def mae(labels, output):
+    return torch.mean(torch.abs(labels - output))
 
-def mse(img1, img2, const=255):
-    mse = np.mean( (img1/const - img2/const) ** 2 )
-    return mse
-    
-def mae(img1, img2, const=255): 
-    mae = np.mean( abs(img1/const - img2/const)  )
-    return mae   
+def psnr(labels, output, max_value=1.0):
+    mse_value = mse(labels, output)
+    if mse_value == 0:
+        return float('inf')  
+    return 10 * torch.log10(max_value ** 2 / mse_value)
 
 def randomcrop(img0, gt, img1, l_event, r_event, h, w):
     _, iw, ih = img0.shape
