@@ -70,7 +70,7 @@ class EDSR(nn.Module):
         dim_dctfeat = dim_dctfeat_left + dim_dctfeat_right
 
         kernel_size = 3
-        n_basicblock = 12 # 20
+        n_basicblock = 6 # 20
 
         # define head module for pixel input
         self.head_pix_left = nn.Sequential(nn.Conv2d(in_channels=in_channel_img, out_channels=dim_imgfeat_left//2, kernel_size=kernel_size, padding=(kernel_size//2), stride=1),
@@ -162,7 +162,7 @@ class EDSR(nn.Module):
         x_pix = self.tail(res_pix)
         x_pix = self.pix_shuffle(x_pix)
 
-        result = x_pix + left_image
+        result = x_pix + (left_image+right_image)/2
         result = torch.sigmoid(result)
         return result, x_pix
 
