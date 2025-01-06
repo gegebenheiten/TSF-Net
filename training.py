@@ -35,6 +35,9 @@ def validate(opt, model, val_loader, writer, epoch):
     ssim_sum = 0.0
     ssim_loss_sum = 0.0
     L1_loss_sum = 0.0
+    mse_sum = 0.0
+    mae_sum = 0.0
+    psnr_sum = 0.0
     with torch.no_grad():  
         for loader in val_loader:
             for i, (left_image, right_image, gt_image, left_voxel_grid, right_voxel_grid, name) in enumerate(loader):
@@ -52,10 +55,18 @@ def validate(opt, model, val_loader, writer, epoch):
                 ssim_error = ssim( gt_image, output, data_range=1.0, size_average=True)
                 ssim_loss = 1 - ssim_error
                 loss = L1_loss * 0.15 + ssim_loss * 0.85
+
+                mean_square_error = mse(gt_image, output)
+                mean_absolute_error = mae(gt_image, output)
+                psnr_error = psnr(gt_image, output)
+
                 val_loss += loss.item()
                 ssim_sum += ssim_error.item()
                 L1_loss_sum += L1_loss.item()
                 ssim_loss_sum += ssim_loss.item()
+                mse_sum += mean_square_error.item()
+                mae_sum += mean_absolute_error.item()
+                psnr_sum += psnr_error.item()
                 
                 step+=1
                     
@@ -64,12 +75,18 @@ def validate(opt, model, val_loader, writer, epoch):
     avg_L1_loss = L1_loss_sum / step
     avg_ssim_loss = ssim_loss_sum / step
     avg_ssim = ssim_sum / step
+    avg_mse_error = mse_sum / step
+    avg_mae_error = mae_sum / step
+    avg_psnr = psnr_sum / step
 
     # Log validation metrics
-    writer.add_scalar('Loss/validation', avg_val_loss, epoch)
-    writer.add_scalar('Loss/validation/L1_loss', avg_L1_loss, epoch)
-    writer.add_scalar('Loss/validation/SSIM_loss', avg_ssim_loss, epoch)
-    writer.add_scalar('Loss/validation/Structural Similarity Index', avg_ssim, epoch)
+    writer.add_scalar('validation/Loss', avg_val_loss, epoch)
+    writer.add_scalar('validation/L1_loss', avg_L1_loss, epoch)
+    writer.add_scalar('validation/SSIM_loss', avg_ssim_loss, epoch)
+    writer.add_scalar('validation/Structural Similarity Index', avg_ssim, epoch)
+    writer.add_scalar('validation/Mean Squared Error', avg_mse_error, epoch)
+    writer.add_scalar('validation/Mean Absolute Error', avg_mae_error, epoch)
+    writer.add_scalar('validation/PSNR', avg_psnr, epoch)
     # if epoch % 10 == 0:
     #     writer.add_images('Model output/Validation', output_denorm, epoch)
     print('--------Validation-----------')
@@ -184,13 +201,13 @@ def main():
         avg_mae_error = mae_sum / step
         avg_ssim = ssim_sum / step
         avg_psnr = psnr_sum / step
-        writer.add_scalar('Loss/train', avg_train_loss, epoch)
-        writer.add_scalar('Loss/train/L1_loss', avg_L1_loss, epoch)
-        writer.add_scalar('Loss/train/SSIM_loss', avg_ssim_loss, epoch)
-        writer.add_scalar('Loss/train/SSIM', avg_ssim, epoch)
-        writer.add_scalar('Metrics/Mean Squared Error', avg_mse_error, epoch)
-        writer.add_scalar('Metrics/Mean Absolute Error', avg_mae_error, epoch)
-        writer.add_scalar('Metrics/Peak Signal-to-Noise Ratio', avg_psnr, epoch)
+        writer.add_scalar('train/Loss', avg_train_loss, epoch)
+        writer.add_scalar('train/L1_loss', avg_L1_loss, epoch)
+        writer.add_scalar('train/SSIM_loss', avg_ssim_loss, epoch)
+        writer.add_scalar('train/SSIM', avg_ssim, epoch)
+        writer.add_scalar('train/Mean Squared Error', avg_mse_error, epoch)
+        writer.add_scalar('train/Mean Absolute Error', avg_mae_error, epoch)
+        writer.add_scalar('train/PSNR', avg_psnr, epoch)
 
         # if epoch % 10 == 0:
         #     # residue_denorm = (residue + 1) / 2
