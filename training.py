@@ -6,6 +6,7 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from models.EDSR import EDSR
+from models.unet_residual import build_unet
 from dataset import HSERGBDataset
 import numpy as np
 from pytorch_msssim import ssim
@@ -123,7 +124,8 @@ def main():
     dct_min = torch.from_numpy(stats['dct_input']['min'][None, :, None, None]).float().to(opt.device)
     dct_max = torch.from_numpy(stats['dct_input']['max'][None, :, None, None]).float().to(opt.device)
     # pdb.set_trace()
-    model = EDSR(n_blocks, dct_max, dct_min).to(opt.device)
+    # model = EDSR(n_blocks, dct_max, dct_min).to(opt.device)
+    model = build_unet(2*3+2*5, 3).to(opt.device)
     # criterion = nn.L1Loss()
     optimizer = optim.Adam(model.parameters(), lr=opt.initial_lr)
 
@@ -135,9 +137,9 @@ def main():
     log_dir = f'./logs/{datetime.now().strftime("%Y%m%d_%H%M%S")}_batch_{opt.batch_size}_insert_{opt.skip_number}'
     writer = SummaryWriter(log_dir=log_dir)
 
-    if torch.cuda.device_count() > 1:
-        print("Using", torch.cuda.device_count(), "GPUs for training!")
-        model = nn.DataParallel(model)
+    # if torch.cuda.device_count() > 1:
+    #     print("Using", torch.cuda.device_count(), "GPUs for training!")
+    #     model = nn.DataParallel(model)
 
     
     for epoch in range(opt.num_epochs):
@@ -226,14 +228,14 @@ def main():
 
         if (epoch + 1) % 20 == 0:
             model_dir = './save_models'
-            model_name = f"model_epoch_{epoch + 1}_batch_{opt.batch_size}_insert_{opt.skip_number}_small.pth"
+            model_name = f"unet_epoch_{epoch + 1}_batch_{opt.batch_size}_insert_{opt.skip_number}_small.pth"
             if not os.path.exists(model_dir):
                 os.makedirs(model_dir, exist_ok=True)
             model_save_path = os.path.join(model_dir, model_name)
             torch.save(model.state_dict(), model_save_path)
             print(f"Model saved to {model_save_path}")
 
-    model_name = f"model_epoch_{opt.num_epochs}_batch_{opt.batch_size}_insert_{opt.skip_number}_small.pth"
+    model_name = f"unet_epoch_{opt.num_epochs}_batch_{opt.batch_size}_insert_{opt.skip_number}_small.pth"
     model_save_path = os.path.join(model_dir, model_name)
     torch.save(model.state_dict(), model_save_path)
     print(f"Model saved to {model_save_path}")
