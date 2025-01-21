@@ -1,3 +1,4 @@
+import pdb
 import sys
 from torchvision import transforms
 import cv2
@@ -74,8 +75,8 @@ class HSERGBDataset:
 
             # event_left_forward = representation.to_count_map(e_left, self.nb_of_time_bin).clone()
             # event_right_forward = representation.to_count_map(e_right, self.nb_of_time_bin).clone()
-            
             left_voxel_grid = representation.to_voxel_grid(e_left, nb_of_time_bins=self.nb_of_time_bin)
+            e_right.reverse()
             right_voxel_grid = representation.to_voxel_grid(e_right, nb_of_time_bins=self.nb_of_time_bin)
 
             # e_right.reverse()
@@ -94,10 +95,13 @@ class HSERGBDataset:
             elif self.mode == 'val':
                 left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = centercrop(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, self.osize, self.osize)
             elif self.mode == 'test':
-                left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = padding(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, 640, 1024)
+                left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid = padding(left_image, gt_image, right_image, left_voxel_grid, right_voxel_grid, 660, 732)
             
             # return events_forward, events_backward, left_image, right_image, gt_image, weight, \
             #      [self.nb_of_time_bin, self.nb_of_time_bin], surface, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
+            
+            left_voxel_grid = (left_voxel_grid - left_voxel_grid.min()) / (left_voxel_grid.max() - left_voxel_grid.min())
+            right_voxel_grid = (right_voxel_grid - right_voxel_grid.min()) / (right_voxel_grid.max() - right_voxel_grid.min())
 
             return left_image, right_image, gt_image, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
 
