@@ -99,9 +99,7 @@ class HSERGBDataset:
             
             # return events_forward, events_backward, left_image, right_image, gt_image, weight, \
             #      [self.nb_of_time_bin, self.nb_of_time_bin], surface, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
-            
-            left_voxel_grid = (left_voxel_grid - left_voxel_grid.min()) / (left_voxel_grid.max() - left_voxel_grid.min())
-            right_voxel_grid = (right_voxel_grid - right_voxel_grid.min()) / (right_voxel_grid.max() - right_voxel_grid.min())
 
+            left_voxel_grid = (left_voxel_grid - left_voxel_grid.min()) / (left_voxel_grid.max() - left_voxel_grid.min()) if left_voxel_grid.max() != left_voxel_grid.min() else left_voxel_grid
+            right_voxel_grid = (right_voxel_grid - right_voxel_grid.min()) / (right_voxel_grid.max() - right_voxel_grid.min()) if right_voxel_grid.max() != right_voxel_grid.min() else right_voxel_grid
             return left_image, right_image, gt_image, left_voxel_grid, right_voxel_grid, self.gt_image[seq_idx][sample_idx]
-
